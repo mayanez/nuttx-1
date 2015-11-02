@@ -1,4 +1,4 @@
-/*****************************************************************************
+/****************************************************************************
  * sched/sched/sched_waitpid.c
  *
  *   Copyright (C) 2011-2013, 2015 Gregory Nutt. All rights reserved.
@@ -31,11 +31,11 @@
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- *****************************************************************************/
+ ****************************************************************************/
 
-/*****************************************************************************
+/****************************************************************************
  * Included Files
- *****************************************************************************/
+ ****************************************************************************/
 
 #include <nuttx/config.h>
 
@@ -51,15 +51,15 @@
 
 #ifdef CONFIG_SCHED_WAITPID
 
-/*****************************************************************************
+/****************************************************************************
  * Private Functions
- *****************************************************************************/
+ ****************************************************************************/
 
-/*****************************************************************************
+/****************************************************************************
  * Public Functions
- *****************************************************************************/
+ ****************************************************************************/
 
-/*****************************************************************************
+/****************************************************************************
  * Name: waitpid
  *
  * Description:
@@ -176,7 +176,7 @@
  *   defined), then waitpid() is still available, but does not obey the
  *   restriction that the pid be a child of the caller.
  *
- *****************************************************************************/
+ ****************************************************************************/
 
 #ifndef CONFIG_SCHED_HAVE_PARENT
 pid_t waitpid(pid_t pid, int *stat_loc, int options)
@@ -274,7 +274,7 @@ errout:
   return ERROR;
 }
 
-/***************************************************************************
+/****************************************************************************
  *
  * If CONFIG_SCHED_HAVE_PARENT is defined, then waitpid will use the SIGHCLD
  * signal.  It can also handle the pid == (pid_t)-1 arguement.  This is
@@ -285,7 +285,7 @@ errout:
  * lost (or to have the data in the struct siginfo to be overwritten by
  * the next signal).
  *
- ***************************************************************************/
+ ****************************************************************************/
 
 #else
 pid_t waitpid(pid_t pid, int *stat_loc, int options)
@@ -353,11 +353,11 @@ pid_t waitpid(pid_t pid, int *stat_loc, int options)
 
       /* Does this task retain child status? */
 
-       if (retains)
+      if (retains)
         {
-           /* Check if this specific pid has allocated child status? */
+          /* Check if this specific pid has allocated child status? */
 
-           if (group_findchild(rtcb->group, pid) == NULL)
+          if (group_findchild(rtcb->group, pid) == NULL)
             {
               err = ECHILD;
               goto errout_with_errno;
@@ -376,7 +376,7 @@ pid_t waitpid(pid_t pid, int *stat_loc, int options)
     }
   else if (pid != (pid_t)-1)
     {
-     /* Get the TCB corresponding to this PID and make sure it is our child. */
+      /* Get the TCB corresponding to this PID and make sure it is our child. */
 
       ctcb = sched_gettcb(pid);
 #ifdef HAVE_GROUP_MEMBERS
@@ -394,7 +394,7 @@ pid_t waitpid(pid_t pid, int *stat_loc, int options)
 
   /* Loop until the child that we are waiting for dies */
 
-  for (;;)
+  for (; ; )
     {
 #ifdef CONFIG_SCHED_CHILD_STATUS
       /* Check if the task has already died. Signals are not queued in

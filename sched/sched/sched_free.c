@@ -1,7 +1,7 @@
-/************************************************************************
+/****************************************************************************
  * sched/sched/sched_free.c
  *
- *   Copyright (C) 2007, 2009, 2012-2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007, 2009, 2012-2013, 2015 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,11 +31,13 @@
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- ************************************************************************/
+ ****************************************************************************/
 
-/************************************************************************
+
+/****************************************************************************
  * Included Files
- ************************************************************************/
+ ****************************************************************************/
+
 
 #include <nuttx/config.h>
 
@@ -48,31 +50,37 @@
 
 #include "sched/sched.h"
 
-/************************************************************************
+/****************************************************************************
  * Pre-processor Definitions
- ************************************************************************/
+ ****************************************************************************/
 
-/************************************************************************
+
+/****************************************************************************
  * Private Type Declarations
- ************************************************************************/
+ ****************************************************************************/
 
-/************************************************************************
- * Global Variables
- ************************************************************************/
 
-/************************************************************************
+/****************************************************************************
+ * Public Data
+ ****************************************************************************/
+
+
+/****************************************************************************
  * Private Variables
- ************************************************************************/
+ ****************************************************************************/
 
-/************************************************************************
+
+/****************************************************************************
  * Private Function Prototypes
- ************************************************************************/
+ ****************************************************************************/
 
-/************************************************************************
+
+/****************************************************************************
  * Public Functions
- ************************************************************************/
+ ****************************************************************************/
 
-/************************************************************************
+
+/****************************************************************************
  * Name: sched_ufree and sched_kfree
  *
  * Description:
@@ -81,12 +89,23 @@
  *   corner cases where the operating system may have to perform
  *   deallocations from within an interrupt handler.
  *
- ************************************************************************/
+ ****************************************************************************/
 
 void sched_ufree(FAR void *address)
 {
-  irqstate_t flags;
+#ifdef CONFIG_BUILD_KERNEL
+  /* REVISIT:  It is not safe to defer user allocation in the kernel mode
+   * build.  Why?  Because the correct user context is in place now but
+   * will not be in place when the deferred de-allocation is performed.  In
+   * order to make this work, we would need to do something like:  (1) move
+   * g_delayed_kufree into the group structure, then traverse the groups to
+   * collect garbage on a group-by-group basis.
+   */
 
+   ASSERT(!up_interrupt_context());
+   kumm_free(address);
+
+#else
   /* Check if this is an attempt to deallocate memory from an exception
    * handler.  If this function is called from the IDLE task, then we
    * must have exclusive access to the memory manager to do this.
@@ -94,6 +113,8 @@ void sched_ufree(FAR void *address)
 
   if (up_interrupt_context() || kumm_trysemaphore() != 0)
     {
+      irqstate_t flags;
+
       /* Yes.. Make sure that this is not a attempt to free kernel memory
        * using the user deallocator.
        */
@@ -106,7 +127,8 @@ void sched_ufree(FAR void *address)
 
       /* Delay the deallocation until a more appropriate time. */
 
-      sq_addlast((FAR sq_entry_t*)address, (sq_queue_t*)&g_delayed_kufree);
+      sq_addlast((FAR sq_entry_t *)address,
+                 (FAR sq_queue_t *)&g_delayed_kufree);
 
       /* Signal the worker thread that is has some clean up to do */
 
@@ -122,6 +144,7 @@ void sched_ufree(FAR void *address)
       kumm_free(address);
       kumm_givesemaphore();
     }
+#endif
 }
 
 #ifdef CONFIG_MM_KERNEL_HEAP
@@ -145,7 +168,8 @@ void sched_kfree(FAR void *address)
 
       /* Delay the deallocation until a more appropriate time. */
 
-      sq_addlast((FAR sq_entry_t*)address, (sq_queue_t*)&g_delayed_kfree);
+      sq_addlast((FAR sq_entry_t *)address,
+                 (FAR sq_queue_t *)&g_delayed_kfree);
 
       /* Signal the worker thread that is has some clean up to do */
 

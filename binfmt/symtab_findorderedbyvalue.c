@@ -62,9 +62,9 @@
  * Private Functions
  ****************************************************************************/
 
-/***********************************************************************
+/****************************************************************************
  * Public Functions
- ***********************************************************************/
+ ****************************************************************************/
 
 /****************************************************************************
  * Name: symtab_findorderedbyvalue
@@ -100,7 +100,7 @@ symtab_findorderedbyvalue(FAR const struct symtab_s *symtab,
        */
 
       mid = (low + high) >> 1;
-      if ( value < symtab[mid].sym_value)
+      if (value < symtab[mid].sym_value)
         {
           high = mid - 1;
         }
@@ -114,13 +114,13 @@ symtab_findorderedbyvalue(FAR const struct symtab_s *symtab,
         }
     }
 
- /* low == high... One final check.  We might not have actually tested
-  * the final symtab[] name.
-  *
-  *   Example: Only the last pass through loop, suppose low = 1, high = 2,
-  *   mid = 1, and symtab[high].sym_name == name.  Then we would get here with
-  *   low = 2, high = 2, but symtab[2].sym_name was never tested.
-  */
+  /* low == high... One final check.  We might not have actually tested
+   * the final symtab[] name.
+   *
+   *   Example: Only the last pass through loop, suppose low = 1, high = 2,
+   *   mid = 1, and symtab[high].sym_name == name.  Then we would get here with
+   *   low = 2, high = 2, but symtab[2].sym_name was never tested.
+   */
 
   return value == symtab[low].sym_value ? &symtab[low] : NULL;
 }

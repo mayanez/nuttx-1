@@ -1,4 +1,4 @@
-/************************************************************************
+/****************************************************************************
  * sched/sched/sched_unlock.c
  *
  *   Copyright (C) 2007, 2009, 2014 Gregory Nutt. All rights reserved.
@@ -31,11 +31,11 @@
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- ************************************************************************/
+ ****************************************************************************/
 
-/************************************************************************
+/****************************************************************************
  * Included Files
- ************************************************************************/
+ ****************************************************************************/
 
 #include <nuttx/config.h>
 
@@ -44,11 +44,11 @@
 
 #include "sched/sched.h"
 
-/************************************************************************
+/****************************************************************************
  * Public Functions
- ************************************************************************/
+ ****************************************************************************/
 
-/************************************************************************
+/****************************************************************************
  * Name:  sched_unlock
  *
  * Description:
@@ -59,11 +59,11 @@
  *   decremented to zero, any tasks that were eligible to preempt the
  *   current task will execute.
  *
- ************************************************************************/
+ ****************************************************************************/
 
 int sched_unlock(void)
 {
-  FAR struct tcb_s *rtcb = (FAR struct tcb_s*)g_readytorun.head;
+  FAR struct tcb_s *rtcb = (FAR struct tcb_s *)g_readytorun.head;
 
   /* Check for some special cases:  (1) rtcb may be NULL only during
    * early boot-up phases, and (2) sched_unlock() should have no
@@ -118,7 +118,7 @@ int sched_unlock(void)
                * maximum.
                */
 
-              if (rtcb != (FAR struct tcb_s*)g_readytorun.head)
+              if (rtcb != (FAR struct tcb_s *)g_readytorun.head)
                 {
                   rtcb->timeslice = MSEC2TICK(CONFIG_RR_INTERVAL);
                 }
@@ -156,7 +156,7 @@ int sched_unlock(void)
                * change the currently active task.
                */
 
-              if (rtcb == (FAR struct tcb_s*)g_readytorun.head)
+              if (rtcb == (FAR struct tcb_s *)g_readytorun.head)
                 {
                   sched_timer_reassess();
                 }

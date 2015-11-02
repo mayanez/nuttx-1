@@ -46,7 +46,7 @@
 #include <string.h>
 
 /****************************************************************************
- * Global Functions
+ * Public Functions
  ****************************************************************************/
 
 
@@ -68,8 +68,8 @@
 
 FAR void *memccpy(FAR void *s1, FAR const void *s2, int c, size_t n)
 {
-  FAR unsigned char *pout = (FAR unsigned char*)s1;
-  FAR unsigned char *pin  = (FAR unsigned char*)s2;
+  FAR unsigned char *pout = (FAR unsigned char *)s1;
+  FAR unsigned char *pin  = (FAR unsigned char *)s2;
 
   /* Copy at most n bytes */
 

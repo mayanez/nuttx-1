@@ -51,7 +51,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Public Variables
+ * Public Data
  ****************************************************************************/
 
 /****************************************************************************
@@ -78,21 +78,31 @@
 
 static inline void sched_kucleanup(void)
 {
+#ifdef CONFIG_BUILD_KERNEL
+  /* REVISIT:  It is not safe to defer user allocation in the kernel mode
+   * build.  Why?  Because the correct user context will not be in place
+   * when these deferred de-allocations are performed.  In order to make
+   * this work, we would need to do something like:  (1) move
+   * g_delayed_kufree into the group structure, then traverse the groups to
+   * collect garbage on a group-by-group basis.
+   */
+
+#else
    irqstate_t flags;
    FAR void *address;
 
-   /* Test if the delayed deallocation queue is empty.  No special protection
-    * is needed because this is an atomic test.
-    */
+  /* Test if the delayed deallocation queue is empty.  No special protection
+   * is needed because this is an atomic test.
+   */
 
-   while (g_delayed_kufree.head)
+  while (g_delayed_kufree.head)
     {
       /* Remove the first delayed deallocation.  This is not atomic and so
        * we must disable interrupts around the queue operation.
        */
 
       flags = irqsave();
-      address = (FAR void*)sq_remfirst((FAR sq_queue_t*)&g_delayed_kufree);
+      address = (FAR void *)sq_remfirst((FAR sq_queue_t *)&g_delayed_kufree);
       irqrestore(flags);
 
       /* The address should always be non-NULL since that was checked in the
@@ -106,6 +116,7 @@ static inline void sched_kucleanup(void)
           kumm_free(address);
         }
     }
+#endif
 }
 
 /****************************************************************************
@@ -126,21 +137,21 @@ static inline void sched_kucleanup(void)
      defined(CONFIG_MM_KERNEL_HEAP)
 static inline void sched_kcleanup(void)
 {
-   irqstate_t flags;
-   FAR void *address;
+  irqstate_t flags;
+  FAR void *address;
 
-   /* Test if the delayed deallocation queue is empty.  No special protection
-    * is needed because this is an atomic test.
-    */
+  /* Test if the delayed deallocation queue is empty.  No special protection
+   * is needed because this is an atomic test.
+   */
 
-   while (g_delayed_kfree.head)
+  while (g_delayed_kfree.head)
     {
       /* Remove the first delayed deallocation.  This is not atomic and so
        * we must disable interrupts around the queue operation.
        */
 
       flags = irqsave();
-      address = (FAR void*)sq_remfirst((FAR sq_queue_t*)&g_delayed_kfree);
+      address = (FAR void *)sq_remfirst((FAR sq_queue_t *)&g_delayed_kfree);
       irqrestore(flags);
 
       /* The address should always be non-NULL since that was checked in the
@@ -190,7 +201,7 @@ void sched_garbagecollection(void)
 
   sched_kcleanup();
 
-  /* Handle deferred dealloctions for the user heap */
+  /* Handle deferred deallocations for the user heap */
 
   sched_kucleanup();
 }

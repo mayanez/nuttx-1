@@ -698,14 +698,14 @@ static ssize_t can_write(FAR struct file *filep, FAR const char *buffer,
       nsent += msglen;
     }
 
- /* We get here after all messages have been added to the FIFO.  Check if
-  * we need to kick of the XMIT sequence.
-  */
+  /* We get here after all messages have been added to the FIFO.  Check if
+   * we need to kick of the XMIT sequence.
+   */
 
- if (inactive)
-   {
-     can_xmit(dev);
-   }
+  if (inactive)
+    {
+      can_xmit(dev);
+    }
 
   /* Return the number of bytes that were sent */
 
@@ -795,7 +795,7 @@ static int can_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
        */
 
       case CANIOC_RTR:
-        ret = can_rtrread(dev, (struct canioc_rtr_s*)((uintptr_t)arg));
+        ret = can_rtrread(dev, (FAR struct canioc_rtr_s *)((uintptr_t)arg));
         break;
 
       /* Not a "built-in" ioctl command.. perhaps it is unique to this

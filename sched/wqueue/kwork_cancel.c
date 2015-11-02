@@ -59,7 +59,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Public Variables
+ * Public Data
  ****************************************************************************/
 
 /****************************************************************************
@@ -109,11 +109,13 @@ static int work_qcancel(FAR struct kwork_wqueue_s *wqueue,
     {
       /* A little test of the integrity of the work queue */
 
-      DEBUGASSERT(work->dq.flink || (FAR dq_entry_t *)work == wqueue->q.tail);
-      DEBUGASSERT(work->dq.blink || (FAR dq_entry_t *)work == wqueue->q.head);
+      DEBUGASSERT(work->dq.flink != NULL ||
+                  (FAR dq_entry_t *)work == wqueue->q.tail);
+      DEBUGASSERT(work->dq.blink != NULL ||
+                  (FAR dq_entry_t *)work == wqueue->q.head);
 
       /* Remove the entry from the work queue and make sure that it is
-       * mark as available (i.e., the worker field is nullified).
+       * marked as available (i.e., the worker field is nullified).
        */
 
       dq_rem((FAR dq_entry_t *)work, &wqueue->q);

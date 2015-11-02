@@ -304,7 +304,7 @@ static pthread_addr_t work_usrthread(pthread_addr_t arg)
 {
   /* Loop forever */
 
-  for (;;)
+  for (; ; )
     {
       /* Then process queued work.  We need to keep the work queue locked
        * while we process items in the work list.
@@ -386,7 +386,7 @@ int work_usrstart(void)
     (void)pthread_attr_init(&attr);
     (void)pthread_attr_setstacksize(&attr, CONFIG_LIB_USRWORKSTACKSIZE);
 
-+#ifdef CONFIG_SCHED_SPORADIC
+#ifdef CONFIG_SCHED_SPORADIC
     /* Get the current sporadic scheduling parameters.  Those will not be
      * modified.
      */

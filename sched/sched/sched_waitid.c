@@ -1,4 +1,4 @@
-/*****************************************************************************
+/****************************************************************************
  * sched/sched/sched_waitid.c
  *
  *   Copyright (C) 2013, 2015 Gregory Nutt. All rights reserved.
@@ -31,11 +31,11 @@
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- *****************************************************************************/
+ ****************************************************************************/
 
-/*****************************************************************************
+/****************************************************************************
  * Included Files
- *****************************************************************************/
+ ****************************************************************************/
 
 #include <nuttx/config.h>
 
@@ -50,18 +50,18 @@
 
 #if defined(CONFIG_SCHED_WAITPID) && defined(CONFIG_SCHED_HAVE_PARENT)
 
-/*****************************************************************************
+/****************************************************************************
  * Private Functions
- *****************************************************************************/
+ ****************************************************************************/
 
-/*****************************************************************************
+/****************************************************************************
  * Name: exited_child
  *
  * Description:
  *   Handle the case where a child exited properlay was we (apparently) lost
  *   the detch of child signal.
  *
- *****************************************************************************/
+ ****************************************************************************/
 
 #ifdef CONFIG_SCHED_CHILD_STATUS
 static void exited_child(FAR struct tcb_s *rtcb, FAR struct child_status_s *child,
@@ -85,11 +85,11 @@ static void exited_child(FAR struct tcb_s *rtcb, FAR struct child_status_s *chil
 }
 #endif
 
-/*****************************************************************************
+/****************************************************************************
  * Public Functions
- *****************************************************************************/
+ ****************************************************************************/
 
-/*****************************************************************************
+/****************************************************************************
  * Name: waitid
  *
  * Description:
@@ -150,7 +150,7 @@ static void exited_child(FAR struct tcb_s *rtcb, FAR struct child_status_s *chil
  *     EINVAL - An invalid value was specified for options, or idtype and id
  *       specify an invalid set of processes.
  *
- *****************************************************************************/
+ ****************************************************************************/
 
 int waitid(idtype_t idtype, id_t id, FAR siginfo_t *info, int options)
 {
@@ -225,9 +225,9 @@ int waitid(idtype_t idtype, id_t id, FAR siginfo_t *info, int options)
 
       /* Does this task retain child status? */
 
-       if (retains)
+      if (retains)
         {
-           /* Check if this specific pid has allocated child status? */
+          /* Check if this specific pid has allocated child status? */
 
           if (group_findchild(rtcb->group, (pid_t)id) == NULL)
             {
@@ -248,7 +248,7 @@ int waitid(idtype_t idtype, id_t id, FAR siginfo_t *info, int options)
     }
   else if (idtype == P_PID)
     {
-     /* Get the TCB corresponding to this PID and make sure it is our child. */
+      /* Get the TCB corresponding to this PID and make sure it is our child. */
 
       ctcb = sched_gettcb((pid_t)id);
 #ifdef HAVE_GROUP_MEMBERS
@@ -265,7 +265,7 @@ int waitid(idtype_t idtype, id_t id, FAR siginfo_t *info, int options)
 
   /* Loop until the child that we are waiting for dies */
 
-  for (;;)
+  for (; ; )
     {
 #ifdef CONFIG_SCHED_CHILD_STATUS
       /* Check if the task has already died. Signals are not queued in

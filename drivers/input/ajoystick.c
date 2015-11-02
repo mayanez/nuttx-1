@@ -67,11 +67,11 @@
  * Private Types
  ****************************************************************************/
 
-/* This structure provides the state of one discrete joystick driver */
+/* This structure provides the state of one analog joystick driver */
 
 struct ajoy_upperhalf_s
 {
-  /* Saved binding to the lower half discrete joystick driver */
+  /* Saved binding to the lower half analog joystick driver */
 
   FAR const struct ajoy_lowerhalf_s *au_lower;
 
@@ -143,7 +143,8 @@ static void    ajoy_sample(FAR struct ajoy_upperhalf_s *priv);
 
 static int     ajoy_open(FAR struct file *filep);
 static int     ajoy_close(FAR struct file *filep);
-static ssize_t ajoy_read(FAR struct file *, FAR char *, size_t);
+static ssize_t ajoy_read(FAR struct file *filep, FAR char *buffer,
+                         size_t buflen);
 static int     ajoy_ioctl(FAR struct file *filep, int cmd,
                           unsigned long arg);
 #ifndef CONFIG_DISABLE_POLL
@@ -822,15 +823,15 @@ errout_with_dusem:
  * Name: ajoy_register
  *
  * Description:
- *   Bind the lower half discrete joystick driver to an instance of the
- *   upper half discrete joystick driver and register the composite character
+ *   Bind the lower half analog joystick driver to an instance of the
+ *   upper half analog joystick driver and register the composite character
  *   driver as the specific device.
  *
  * Input Parameters:
- *   devname - The name of the discrete joystick device to be registers.
+ *   devname - The name of the analog joystick device to be registers.
  *     This should be a string of the form "/priv/ajoyN" where N is the the
  *     minor device number.
- *   lower - An instance of the platform-specific discrete joystick lower
+ *   lower - An instance of the platform-specific analog joystick lower
  *     half driver.
  *
  * Returned Values:

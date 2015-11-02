@@ -260,7 +260,7 @@ static inline bool psock_send_addrchck(FAR struct tcp_conn_s *conn)
 }
 
 #else /* CONFIG_NET_ETHERNET */
-#  psock_send_addrchck(r) (true)
+#  define  psock_send_addrchck(r) (true)
 #endif /* CONFIG_NET_ETHERNET */
 
 /****************************************************************************
@@ -386,7 +386,7 @@ static uint16_t tcpsend_interrupt(FAR struct net_driver_s *dev,
       /* Fall through to re-send data from the last that was ACKed */
     }
 
- /* Check for a loss of connection */
+  /* Check for a loss of connection */
 
   else if ((flags & TCP_DISCONN_EVENTS) != 0)
     {
@@ -399,17 +399,17 @@ static uint16_t tcpsend_interrupt(FAR struct net_driver_s *dev,
       goto end_wait;
     }
 
-   /* Check if the outgoing packet is available (it may have been claimed
-    * by a sendto interrupt serving a different thread).
-    */
+  /* Check if the outgoing packet is available (it may have been claimed
+   * by a sendto interrupt serving a different thread).
+   */
 
 #if 0 /* We can't really support multiple senders on the same TCP socket */
-   else if (dev->d_sndlen > 0)
-     {
-       /* Another thread has beat us sending data, wait for the next poll */
+  else if (dev->d_sndlen > 0)
+    {
+      /* Another thread has beat us sending data, wait for the next poll */
 
-         return flags;
-      }
+      return flags;
+    }
 #endif
 
   /* We get here if (1) not all of the data has been ACKed, (2) we have been

@@ -97,7 +97,7 @@ static int     binfs_stat(FAR struct inode *mountpt, FAR const char *relpath,
  ****************************************************************************/
 
 /****************************************************************************
- * Public Variables
+ * Public Data
  ****************************************************************************/
 
 /* See fs_mount.c -- this structure is explicitly extern'ed there.
@@ -425,13 +425,14 @@ static int binfs_stat(struct inode *mountpt, const char *relpath, struct stat *b
 
       /* It's a execute-only file name */
 
-      buf->st_mode = S_IFREG|S_IXOTH|S_IXGRP|S_IXUSR;
+      buf->st_mode = S_IFREG | S_IXOTH | S_IXGRP | S_IXUSR;
     }
   else
     {
       /* It's a read/execute-only directory name */
 
-      buf->st_mode = S_IFDIR|S_IROTH|S_IRGRP|S_IRUSR|S_IXOTH|S_IXGRP|S_IXUSR;
+      buf->st_mode = S_IFDIR | S_IROTH | S_IRGRP | S_IRUSR | S_IXOTH |
+                     S_IXGRP | S_IXUSR;
     }
 
   /* File/directory size, access block size */

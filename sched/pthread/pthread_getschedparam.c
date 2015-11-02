@@ -53,7 +53,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Global Variables
+ * Public Data
  ****************************************************************************/
 
 /****************************************************************************
@@ -66,7 +66,7 @@
 
 /****************************************************************************
  * Public Functions
- *****************************************************************************/
+ ****************************************************************************/
 
 /****************************************************************************
  * Name: pthread_getschedparam
@@ -89,7 +89,7 @@
  *   (SCHED_OTHER and SCHED_SPORADIC, in particular, are not supported).
  *   The SCHED_FIFO and SCHED_RR policies will have a single scheduling
  *   parameter, sched_priority.
-*
+ *
  * Parameters:
  *   thread - The ID of thread whose scheduling parameters will be queried.
  *   policy - The location to store the thread's scheduling policy.

@@ -1,4 +1,5 @@
 README
+README
 ^^^^^^
 
   o Installation
@@ -78,6 +79,10 @@ Installing Cygwin
      answer the question "Then what should I install?"  I don't know
      the answer to that and so will continue to recommend installing
      EVERYTHING.
+
+     You should certainly be able to omit "Science", "Math", and
+     "Publishing".  You can try omitting KDE, Gnome, GTK, and other
+     graphics packages if you don't plan to use them.
 
   After installing Cygwin, you will get lots of links for installed
   tools and shells.  I use the RXVT native shell.  It is fast and reliable
@@ -1316,6 +1321,8 @@ nuttx/
  |   |   `- README.txt
  |   |- lpc4357-evb/
  |   |   `- README.txt
+ |   |- lpc4370-link2/
+ |   |   `- README.txt
  |   |- lpcxpresso-lpc1115/
  |   |   `- README.txt
  |   |- lpcxpresso-lpc1768/
@@ -1384,6 +1391,8 @@ nuttx/
  |   |- qemu-i486/
  |   |   `- README.txt
  |   |- rgmp/
+ |   |   `- README.txt
+ |   |- sama5d2-xult/
  |   |   `- README.txt
  |   |- sama5d3x-ek/
  |   |   `- README.txt

@@ -81,7 +81,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Global Variables
+ * Public Data
  ****************************************************************************/
 
 /* Task Lists ***************************************************************/
@@ -152,11 +152,21 @@ volatile dq_queue_t g_inactivetasks;
  * while it is within an interrupt handler.
  */
 
-volatile sq_queue_t g_delayed_kufree;
-
 #if (defined(CONFIG_BUILD_PROTECTED) || defined(CONFIG_BUILD_KERNEL)) && \
      defined(CONFIG_MM_KERNEL_HEAP)
 volatile sq_queue_t g_delayed_kfree;
+#endif
+
+#ifndef CONFIG_BUILD_KERNEL
+/* REVISIT:  It is not safe to defer user allocation in the kernel mode
+ * build.  Why?  Because the correct user context will not be in place
+ * when these deferred de-allocations are performed.  In order to make this
+ * work, we would need to do something like:  (1) move g_delayed_kufree
+ * into the group structure, then traverse the groups to collect garbage
+ * on a group-by-group basis.
+ */
+
+volatile sq_queue_t g_delayed_kufree;
 #endif
 
 /* This is the value of the last process ID assigned to a task */
@@ -271,10 +281,12 @@ void os_start(void)
   dq_init(&g_waitingforfill);
 #endif
   dq_init(&g_inactivetasks);
-  sq_init(&g_delayed_kufree);
 #if (defined(CONFIG_BUILD_PROTECTED) || defined(CONFIG_BUILD_KERNEL)) && \
      defined(CONFIG_MM_KERNEL_HEAP)
   sq_init(&g_delayed_kfree);
+#endif
+#ifndef CONFIG_BUILD_KERNEL
+  sq_init(&g_delayed_kufree);
 #endif
 
   /* Initialize the logic that determine unique process IDs. */
@@ -299,7 +311,7 @@ void os_start(void)
    * that has pid == 0 and sched_priority == 0.
    */
 
-  bzero((void*)&g_idletcb, sizeof(struct task_tcb_s));
+  bzero((void *)&g_idletcb, sizeof(struct task_tcb_s));
   g_idletcb.cmn.task_state = TSTATE_TASK_RUNNING;
   g_idletcb.cmn.entry.main = (main_t)os_start;
   g_idletcb.cmn.flags      = TCB_FLAG_TTYPE_KERNEL;
@@ -329,7 +341,7 @@ void os_start(void)
 
   /* Then add the idle task's TCB to the head of the ready to run list */
 
-  dq_addfirst((FAR dq_entry_t*)&g_idletcb, (FAR dq_queue_t*)&g_readytorun);
+  dq_addfirst((FAR dq_entry_t *)&g_idletcb, (FAR dq_queue_t *)&g_readytorun);
 
   /* Initialize the processor-specific portion of the TCB */
 
@@ -538,7 +550,7 @@ void os_start(void)
   /* When control is return to this point, the system is idle. */
 
   sdbg("Beginning Idle Loop\n");
-  for (;;)
+  for (; ; )
     {
       /* Perform garbage collection (if it is not being done by the worker
        * thread).  This cleans-up memory de-allocations that were queued

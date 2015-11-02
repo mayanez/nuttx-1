@@ -247,10 +247,10 @@ struct ug_dev_s
   uint8_t contrast;
   uint8_t powered;
 
- /* The SSD1305 does not support reading from the display memory in SPI mode.
-  * Since there is 1 BPP and access is byte-by-byte, it is necessary to keep
-  * a shadow copy of the framebuffer memory.
-  */
+  /* The SSD1305 does not support reading from the display memory in SPI mode.
+   * Since there is 1 BPP and access is byte-by-byte, it is necessary to keep
+   * a shadow copy of the framebuffer memory.
+   */
 
   uint8_t fb[UG_FBSIZE];
 };
@@ -337,10 +337,10 @@ static const struct fb_videoinfo_s g_videoinfo =
 
 static const struct lcd_planeinfo_s g_planeinfo =
 {
-  .putrun = ug_putrun,             /* Put a run into LCD memory */
-  .getrun = ug_getrun,             /* Get a run from LCD memory */
-  .buffer = (uint8_t*)g_runbuffer, /* Run scratch buffer */
-  .bpp    = UG_BPP,                /* Bits-per-pixel */
+  .putrun = ug_putrun,                  /* Put a run into LCD memory */
+  .getrun = ug_getrun,                  /* Get a run from LCD memory */
+  .buffer = (FAR uint8_t *)g_runbuffer, /* Run scratch buffer */
+  .bpp    = UG_BPP,                     /* Bits-per-pixel */
 };
 
 /* This is the standard, NuttX LCD driver object */
@@ -1109,7 +1109,7 @@ FAR struct lcd_dev_s *ug_initialize(FAR struct spi_dev_s *spi, unsigned int devn
   (void)SPI_SEND(spi, 0x80);                      /* Data 1: Set 1 of 256 contrast steps */
   (void)SPI_SEND(spi, SSD1305_MAPCOL131);         /* Set segment re-map */
   (void)SPI_SEND(spi, SSD1305_DISPNORMAL);        /* Set normal display */
-/*(void)SPI_SEND(spi, SSD1305_DISPINVERTED);         Set inverse display */
+//(void)SPI_SEND(spi, SSD1305_DISPINVERTED);      /* Set inverse display */
   (void)SPI_SEND(spi, SSD1305_SETMUX);            /* Set multiplex ratio */
   (void)SPI_SEND(spi, 0x3f);                      /* Data 1: MUX ratio -1: 15-63 */
   (void)SPI_SEND(spi, SSD1305_SETOFFSET);         /* Set display offset */

@@ -540,7 +540,7 @@ int localhost_initialize(void)
 #ifdef CONFIG_NET_MULTIBUFFER
   priv->lo_dev.d_buf     = g_iobuffer;   /* Attach the IO buffer */
 #endif
-  priv->lo_dev.d_private = (void*)priv;  /* Used to recover private state from dev */
+  priv->lo_dev.d_private = (FAR void *)priv; /* Used to recover private state from dev */
 
   /* Create a watchdog for timing polling for and timing of transmissions */
 
@@ -561,9 +561,9 @@ int localhost_initialize(void)
 #endif
 
 #ifdef CONFIG_NET_IPv6
- net_ipv6addr_copy(priv->lo_dev.d_ipv6addr, g_lo_ipv6addr);
- net_ipv6addr_copy(priv->lo_dev.d_ipv6draddr, g_lo_ipv6addr);
- net_ipv6addr_copy(priv->lo_dev.d_ipv6netmask, g_ipv6_alloneaddr);
+  net_ipv6addr_copy(priv->lo_dev.d_ipv6addr, g_lo_ipv6addr);
+  net_ipv6addr_copy(priv->lo_dev.d_ipv6draddr, g_lo_ipv6addr);
+  net_ipv6addr_copy(priv->lo_dev.d_ipv6netmask, g_ipv6_alloneaddr);
 #endif
 
   /* Put the network in the UP state */
