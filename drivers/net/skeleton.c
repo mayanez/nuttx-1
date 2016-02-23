@@ -86,7 +86,6 @@
 /* TX poll delay = 1 seconds. CLK_TCK is the number of clock ticks per second */
 
 #define skeleton_WDDELAY   (1*CLK_TCK)
-#define skeleton_POLLHSEC  (1*2)
 
 /* TX timeout = 1 minute */
 
@@ -207,6 +206,8 @@ static int skel_transmit(FAR struct skel_driver_s *priv)
    */
 
   /* Increment statistics */
+
+  NETDEV_TXPACKETS(priv->sk_dev);
 
   /* Send the packet: address=priv->sk_dev.d_buf, length=priv->sk_dev.d_len */
 
@@ -334,6 +335,7 @@ static void skel_receive(FAR struct skel_driver_s *priv)
       if (BUF->type == HTONS(ETHTYPE_IP))
         {
           nllvdbg("IPv4 frame\n");
+          NETDEV_RXIPV4(&priv->sk_dev);
 
           /* Handle ARP on input then give the IPv4 packet to the network
            * layer
@@ -374,6 +376,7 @@ static void skel_receive(FAR struct skel_driver_s *priv)
       if (BUF->type == HTONS(ETHTYPE_IP6))
         {
           nllvdbg("Iv6 frame\n");
+          NETDEV_RXIPV6(&priv->sk_dev);
 
           /* Give the IPv6 packet to the network layer */
 
@@ -411,6 +414,7 @@ static void skel_receive(FAR struct skel_driver_s *priv)
       if (BUF->type == htons(ETHTYPE_ARP))
         {
           arp_arpin(&priv->sk_dev);
+          NETDEV_RXARP(&priv->sk_dev);
 
           /* If the above function invocation resulted in data that should be
            * sent out on the network, the field  d_len will set to a value > 0.
@@ -422,6 +426,10 @@ static void skel_receive(FAR struct skel_driver_s *priv)
             }
         }
 #endif
+      else
+        {
+          NETDEV_RXDROPPED(&priv->sk_dev);
+        }
     }
   while (); /* While there are more packets to be processed */
 }
@@ -447,13 +455,28 @@ static void skel_txdone(FAR struct skel_driver_s *priv)
 {
   /* Check for errors and update statistics */
 
-  /* If no further xmits are pending, then cancel the TX timeout and
+  NETDEV_TXDONE(priv->sk_dev);
+
+  /* Check if there are pending transmissions */
+
+  /* If no further transmissions are pending, then cancel the TX timeout and
    * disable further Tx interrupts.
    */
 
   wd_cancel(priv->sk_txtimeout);
 
-  /* Then poll the network for new XMIT data */
+  /* Then make sure that the TX poll timer is running (if it is already
+   * running, the following would restart it).  This is necessary to
+   * avoid certain race conditions where the polling sequence can be
+   * interrupted.
+   */
+
+  (void)wd_start(priv->sk_txpoll, skeleton_WDDELAY, skel_poll_expiry, 1,
+                 (wdparm_t)priv);
+
+  /* And disable further TX interrupts. */
+
+  /* In any event, poll the network for new TX data */
 
   (void)devif_poll(&priv->sk_dev, skel_txpoll);
 }
@@ -607,6 +630,8 @@ static inline void skel_txtimeout_process(FAR struct skel_driver_s *priv)
 {
   /* Increment statistics and dump debug info */
 
+  NETDEV_TXTIMEOUTS(priv->sk_dev);
+
   /* Then reset the hardware */
 
   /* Then poll the network for new XMIT data */
@@ -720,7 +745,7 @@ static inline void skel_poll_process(FAR struct skel_driver_s *priv)
    * progress, we will missing TCP time state updates?
    */
 
-  (void)devif_timer(&priv->sk_dev, skel_txpoll, skeleton_POLLHSEC);
+  (void)devif_timer(&priv->sk_dev, skel_txpoll);
 
   /* Setup the watchdog poll timer again */
 
@@ -886,7 +911,7 @@ static int skel_ifdown(FAR struct net_driver_s *dev)
 
   /* Disable the Ethernet interrupt */
 
-  flags = irqsave();
+  flags = enter_critical_section();
   up_disable_irq(CONFIG_skeleton_IRQ);
 
   /* Cancel the TX poll timer and TX timeout timers */
@@ -902,7 +927,7 @@ static int skel_ifdown(FAR struct net_driver_s *dev)
   /* Mark the device "down" */
 
   priv->sk_bifup = false;
-  irqrestore(flags);
+  leave_critical_section(flags);
   return OK;
 }
 
@@ -1011,12 +1036,12 @@ static int skel_txavail(FAR struct net_driver_s *dev)
    * level processing.
    */
 
-  flags = irqsave();
+  flags = enter_critical_section();
 
   /* Perform the out-of-cycle poll now */
 
   skel_txavail_process(priv);
-  irqrestore(flags);
+  leave_critical_section(flags);
 #endif
 
   return OK;

@@ -1,7 +1,7 @@
 /****************************************************************************
  * include/nuttx/net/net.h
  *
- *   Copyright (C) 2007, 2009-2014 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007, 2009-2014, 2016 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,7 +50,7 @@
 #include <semaphore.h>
 
 #ifndef CONFIG_NET_NOINTS
-#  include <arch/irq.h>
+#  include <nuttx/irq.h>
 #endif
 
 /****************************************************************************
@@ -139,7 +139,7 @@ struct socketlist
 /* Callback from netdev_foreach() */
 
 struct net_driver_s; /* Forward reference. Defined in nuttx/net/netdev.h */
-typedef int (*netdev_callback_t)(FAR struct net_driver_s *dev, void *arg);
+typedef int (*netdev_callback_t)(FAR struct net_driver_s *dev, FAR void *arg);
 
 #ifdef CONFIG_NET_NOINTS
 /* Semaphore based locking for non-interrupt based logic.
@@ -253,7 +253,7 @@ void net_initialize(void);
 #ifdef CONFIG_NET_NOINTS
 net_lock_t net_lock(void);
 #else
-#  define net_lock() irqsave()
+#  define net_lock() enter_critical_section()
 #endif
 
 /****************************************************************************
@@ -267,7 +267,7 @@ net_lock_t net_lock(void);
 #ifdef CONFIG_NET_NOINTS
 void net_unlock(net_lock_t flags);
 #else
-#  define net_unlock(f) irqrestore(f)
+#  define net_unlock(f) leave_critical_section(f)
 #endif
 
 /****************************************************************************
@@ -1130,7 +1130,7 @@ int netdev_unregister(FAR struct net_driver_s *dev);
  *
  ****************************************************************************/
 
-int netdev_foreach(netdev_callback_t callback, void *arg);
+int netdev_foreach(netdev_callback_t callback, FAR void *arg);
 
 #undef EXTERN
 #ifdef __cplusplus

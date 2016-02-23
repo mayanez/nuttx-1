@@ -56,24 +56,12 @@
 #ifdef CONFIG_SCHED_LPWORK
 
 /****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/****************************************************************************
- * Private Type Declarations
- ****************************************************************************/
-
-/****************************************************************************
  * Public Data
  ****************************************************************************/
 
 /* The state of the kernel mode, low priority work queue(s). */
 
 struct lp_wqueue_s g_lpwork;
-
-/****************************************************************************
- * Private Data
- ****************************************************************************/
 
 /****************************************************************************
  * Private Functions
@@ -156,7 +144,7 @@ static int work_lpthread(int argc, char *argv[])
            * the garbage collection.
            */
 
-          sched_garbagecollection();
+          sched_garbage_collection();
 
           /* Then process queued work.  work_process will not return until:
            * (1) there is no further work in the work queue, and (2) the polling

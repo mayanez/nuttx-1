@@ -1,7 +1,7 @@
 /****************************************************************************
  * include/nuttx/semaphore.h
  *
- *   Copyright (C) 2014-2015 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2014-2016 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,6 +44,7 @@
 
 #include <semaphore.h>
 
+#include <nuttx/clock.h>
 #include <nuttx/fs/fs.h>
 
 /****************************************************************************
@@ -60,12 +61,12 @@
 struct inode;
 struct nsem_inode_s
 {
-  /* Inode payload unique to named semaphores.  ns_sem must appear first in
-   * this structure in order to support casting between type sem_t and
+  /* Inode payload unique to named semaphores.  ns_inode must appear first
+   * in this structure in order to support casting between type sem_t and
    * types of struct nsem_inode_s. */
 
-  sem_t ns_sem;                     /* The semaphore */
   FAR struct inode *ns_inode;       /* Containing inode */
+  sem_t ns_sem;                     /* The semaphore */
 };
 #endif
 
@@ -110,7 +111,7 @@ extern "C"
  *
  ****************************************************************************/
 
-int sem_tickwait(FAR sem_t *sem, uint32_t start, uint32_t delay);
+int sem_tickwait(FAR sem_t *sem, systime_t start, uint32_t delay);
 
 #undef EXTERN
 #ifdef __cplusplus

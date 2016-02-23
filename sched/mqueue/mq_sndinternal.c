@@ -1,7 +1,7 @@
 /****************************************************************************
  *  sched/mqueue/mq_send.c
  *
- *   Copyright (C) 2007, 2009, 2013-2014 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007, 2009, 2013-2016 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,34 +48,17 @@
 #include <sched.h>
 #include <debug.h>
 
+#include <nuttx/irq.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/arch.h>
 #include <nuttx/sched.h>
+#include <nuttx/signal.h>
+
 #include "sched/sched.h"
 #ifndef CONFIG_DISABLE_SIGNALS
 # include "signal/signal.h"
 #endif
 #include "mqueue/mqueue.h"
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/****************************************************************************
- * Private Type Declarations
- ****************************************************************************/
-
-/****************************************************************************
- * Public Data
- ****************************************************************************/
-
-/****************************************************************************
- * Private Variables
- ****************************************************************************/
-
-/****************************************************************************
- * Private Functions
- ****************************************************************************/
 
 /****************************************************************************
  * Public Functions
@@ -163,7 +146,7 @@ int mq_verifysend(mqd_t mqdes, FAR const char *msg, size_t msglen, int prio)
 FAR struct mqueue_msg_s *mq_msgalloc(void)
 {
   FAR struct mqueue_msg_s *mqmsg;
-  irqstate_t saved_state;
+  irqstate_t flags;
 
   /* If we were called from an interrupt handler, then try to get the message
    * from generally available list of messages. If this fails, then try the
@@ -191,9 +174,9 @@ FAR struct mqueue_msg_s *mq_msgalloc(void)
        * Disable interrupts -- we might be called from an interrupt handler.
        */
 
-      saved_state = irqsave();
+      flags = enter_critical_section();
       mqmsg = (FAR struct mqueue_msg_s *)sq_remfirst(&g_msgfree);
-      irqrestore(saved_state);
+      leave_critical_section(flags);
 
       /* If we cannot a message from the free list, then we will have to allocate one. */
 
@@ -278,7 +261,7 @@ int mq_waitsend(mqd_t mqdes)
                * When we are unblocked, we will try again
                */
 
-              rtcb = (FAR struct tcb_s *)g_readytorun.head;
+              rtcb = this_task();
               rtcb->msgwaitq = msgq;
               msgq->nwaitnotfull++;
 
@@ -332,7 +315,7 @@ int mq_dosend(mqd_t mqdes, FAR struct mqueue_msg_s *mqmsg, FAR const char *msg,
   FAR struct mqueue_inode_s *msgq;
   FAR struct mqueue_msg_s *next;
   FAR struct mqueue_msg_s *prev;
-  irqstate_t saved_state;
+  irqstate_t flags;
 
   /* Get a pointer to the message queue */
 
@@ -350,7 +333,7 @@ int mq_dosend(mqd_t mqdes, FAR struct mqueue_msg_s *mqmsg, FAR const char *msg,
 
   /* Insert the new message in the message queue */
 
-  saved_state = irqsave();
+  flags = enter_critical_section();
 
   /* Search the message list to find the location to insert the new
    * message. Each is list is maintained in ascending priority order.
@@ -375,7 +358,7 @@ int mq_dosend(mqd_t mqdes, FAR struct mqueue_msg_s *mqmsg, FAR const char *msg,
   /* Increment the count of messages in the queue */
 
   msgq->nmsgs++;
-  irqrestore(saved_state);
+  leave_critical_section(flags);
 
   /* Check if we need to notify any tasks that are attached to the
    * message queue
@@ -384,36 +367,50 @@ int mq_dosend(mqd_t mqdes, FAR struct mqueue_msg_s *mqmsg, FAR const char *msg,
 #ifndef CONFIG_DISABLE_SIGNALS
   if (msgq->ntmqdes)
     {
+      struct sigevent event;
+      pid_t pid;
+
       /* Remove the message notification data from the message queue. */
 
-#ifdef CONFIG_CAN_PASS_STRUCTS
-      union sigval value      = msgq->ntvalue;
-#else
-      void *sival_ptr         = msgq->ntvalue.sival_ptr;
-#endif
-      int signo               = msgq->ntsigno;
-      int pid                 = msgq->ntpid;
+      memcpy(&event, &msgq->ntevent, sizeof(struct sigevent));
+      pid = msgq->ntpid;
 
       /* Detach the notification */
 
-      msgq->ntpid             = INVALID_PROCESS_ID;
-      msgq->ntsigno           = 0;
-      msgq->ntvalue.sival_int = 0;
-      msgq->ntmqdes           = NULL;
+      memset(&msgq->ntevent, 0, sizeof(struct sigevent));
+      msgq->ntpid   = INVALID_PROCESS_ID;
+      msgq->ntmqdes = NULL;
 
-      /* Queue the signal -- What if this returns an error? */
+      /* Notification the client via signal? */
+
+      if (event.sigev_notify == SIGEV_SIGNAL)
+        {
+          /* Yes... Queue the signal -- What if this returns an error? */
 
 #ifdef CONFIG_CAN_PASS_STRUCTS
-      sig_mqnotempty(pid, signo, value);
+          DEBUGVERIFY(sig_mqnotempty(pid, event.sigev_signo,
+                      event.sigev_value));
 #else
-      sig_mqnotempty(pid, signo, sival_ptr);
+          DEBUGVERIFY(sig_mqnotempty(pid, event.sigev_signo,
+                      event.sigev_value.sival_ptr));
 #endif
+        }
+
+#ifdef CONFIG_SIG_EVTHREAD
+      /* Notify the client via a function call */
+
+      else if (event.sigev_notify == SIGEV_THREAD)
+        {
+          DEBUGVERIFY(sig_notification(pid, &event));
+        }
+#endif
+
     }
 #endif
 
   /* Check if any tasks are waiting for the MQ not empty event. */
 
-  saved_state = irqsave();
+  flags = enter_critical_section();
   if (msgq->nwaitnotempty > 0)
     {
       /* Find the highest priority task that is waiting for
@@ -435,7 +432,7 @@ int mq_dosend(mqd_t mqdes, FAR struct mqueue_msg_s *mqmsg, FAR const char *msg,
       up_unblock_task(btcb);
     }
 
-  irqrestore(saved_state);
+  leave_critical_section(flags);
   sched_unlock();
   return OK;
 }

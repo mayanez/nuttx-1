@@ -81,7 +81,6 @@
 /* TX poll deley = 1 seconds. CLK_TCK is the number of clock ticks per second */
 
 #define VNET_WDDELAY   (1*CLK_TCK)
-#define VNET_POLLHSEC  (1*2)
 
 /* TX timeout = 1 minute */
 
@@ -176,8 +175,6 @@ static int vnet_transmit(FAR struct vnet_driver_s *vnet)
    * here, then we are committed to sending a packet; Higher level logic
    * must have assured that there is not transmission in progress.
    */
-
-  /* Increment statistics */
 
   /* Send the packet: address=vnet->sk_dev.d_buf, length=vnet->sk_dev.d_len */
 
@@ -476,11 +473,7 @@ static void vnet_txtimeout(int argc, uint32_t arg, ...)
 {
   FAR struct vnet_driver_s *vnet = (FAR struct vnet_driver_s *)arg;
 
-  /* Increment statistics and dump debug info */
-
-  /* Then reset the hardware */
-
-  /* Then poll the network for new XMIT data */
+  /* Poll the network for new XMIT data */
 
   (void)devif_poll(&vnet->sk_dev, vnet_txpoll);
 }
@@ -524,11 +517,12 @@ static void vnet_polltimer(int argc, uint32_t arg, ...)
    * progress, we will missing TCP time state updates?
    */
 
-  (void)devif_timer(&vnet->sk_dev, vnet_txpoll, VNET_POLLHSEC);
+  (void)devif_timer(&vnet->sk_dev, vnet_txpoll);
 
   /* Setup the watchdog poll timer again */
 
-  (void)wd_start(vnet->sk_txpoll, VNET_WDDELAY, vnet_polltimer, 1, arg);
+  (void)wd_start(vnet->sk_txpoll, VNET_WDDELAY, vnet_polltimer, 1,
+                 (wdparm_t)arg);
 }
 
 /****************************************************************************
@@ -560,7 +554,8 @@ static int vnet_ifup(struct net_driver_s *dev)
 
   /* Set and activate a timer process */
 
-  (void)wd_start(vnet->sk_txpoll, VNET_WDDELAY, vnet_polltimer, 1, (uint32_t)vnet);
+  (void)wd_start(vnet->sk_txpoll, VNET_WDDELAY, vnet_polltimer, 1,
+                 (wdparm_t)vnet);
 
   vnet->sk_bifup = true;
   return OK;
@@ -589,7 +584,7 @@ static int vnet_ifdown(struct net_driver_s *dev)
 
   /* Disable the Ethernet interrupt */
 
-  flags = irqsave();
+  flags = enter_critical_section();
 
   /* Cancel the TX poll timer and TX timeout timers */
 
@@ -603,7 +598,7 @@ static int vnet_ifdown(struct net_driver_s *dev)
   /* Mark the device "down" */
 
   vnet->sk_bifup = false;
-  irqrestore(flags);
+  leave_critical_section(flags);
   return OK;
 }
 
@@ -635,7 +630,7 @@ static int vnet_txavail(struct net_driver_s *dev)
    * level processing.
    */
 
-  flags = irqsave();
+  flags = enter_critical_section();
 
   /* Ignore the notification if the interface is not yet up */
 
@@ -657,7 +652,7 @@ static int vnet_txavail(struct net_driver_s *dev)
     }
 
 out:
-  irqrestore(flags);
+  leave_critical_section(flags);
   return OK;
 }
 

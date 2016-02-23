@@ -45,15 +45,11 @@
 #include <queue.h>
 #include <errno.h>
 
-#include <arch/irq.h>
+#include <nuttx/irq.h>
 
 #include "timer/timer.h"
 
 #ifndef CONFIG_DISABLE_POSIX_TIMERS
-
-/********************************************************************************
- * Pre-processor Definitions
- ********************************************************************************/
 
 /********************************************************************************
  * Private Data
@@ -81,10 +77,6 @@ volatile sq_queue_t g_freetimers;
  */
 
 volatile sq_queue_t g_alloctimers;
-
-/********************************************************************************
- * Private Functions
- ********************************************************************************/
 
 /********************************************************************************
  * Public Functions
@@ -155,7 +147,7 @@ void weak_function timer_deleteall(pid_t pid)
   FAR struct posix_timer_s *next;
   irqstate_t flags;
 
-  flags = irqsave();
+  flags = enter_critical_section();
   for (timer = (FAR struct posix_timer_s *)g_alloctimers.head; timer; timer = next)
     {
       next = timer->flink;
@@ -165,7 +157,7 @@ void weak_function timer_deleteall(pid_t pid)
         }
     }
 
-  irqrestore(flags);
+  leave_critical_section(flags);
 }
 
 #endif /* CONFIG_DISABLE_POSIX_TIMERS */

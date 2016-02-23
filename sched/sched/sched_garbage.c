@@ -1,7 +1,7 @@
 /****************************************************************************
  * sched/sched/sched_garbage.c
  *
- *   Copyright (C) 2009, 2011, 2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2009, 2011, 2013, 2016 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,25 +38,10 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/irq.h>
 #include <nuttx/kmalloc.h>
 
 #include "sched/sched.h"
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/****************************************************************************
- * Private Type Declarations
- ****************************************************************************/
-
-/****************************************************************************
- * Public Data
- ****************************************************************************/
-
-/****************************************************************************
- * Private Variables
- ****************************************************************************/
 
 /****************************************************************************
  * Private Functions
@@ -101,9 +86,9 @@ static inline void sched_kucleanup(void)
        * we must disable interrupts around the queue operation.
        */
 
-      flags = irqsave();
+      flags = enter_critical_section();
       address = (FAR void *)sq_remfirst((FAR sq_queue_t *)&g_delayed_kufree);
-      irqrestore(flags);
+      leave_critical_section(flags);
 
       /* The address should always be non-NULL since that was checked in the
        * 'while' condition above.
@@ -118,6 +103,29 @@ static inline void sched_kucleanup(void)
     }
 #endif
 }
+
+/****************************************************************************
+ * Name: sched_have_kugarbage
+ *
+ * Description:
+ *   Return TRUE if there is user heap garbage to be collected.
+ *
+ * Input parameters:
+ *   None
+ *
+ * Returned Value:
+ *   TRUE if there is kernel heap garbage to be collected.
+ *
+ ****************************************************************************/
+
+#ifndef CONFIG_BUILD_KERNEL
+static inline bool sched_have_kugarbage(void)
+{
+  return (g_delayed_kufree.head != NULL);
+}
+#else
+#  define sched_have_kugarbage() false
+#endif
 
 /****************************************************************************
  * Name: sched_kcleanup
@@ -150,9 +158,9 @@ static inline void sched_kcleanup(void)
        * we must disable interrupts around the queue operation.
        */
 
-      flags = irqsave();
+      flags = enter_critical_section();
       address = (FAR void *)sq_remfirst((FAR sq_queue_t *)&g_delayed_kfree);
-      irqrestore(flags);
+      leave_critical_section(flags);
 
       /* The address should always be non-NULL since that was checked in the
        * 'while' condition above.
@@ -171,10 +179,35 @@ static inline void sched_kcleanup(void)
 #endif
 
 /****************************************************************************
+ * Name: sched_have_kgarbage
+ *
+ * Description:
+ *   Return TRUE if there is kernal heap garbage to be collected.
+ *
+ * Input parameters:
+ *   None
+ *
+ * Returned Value:
+ *   TRUE if there is kernel heap garbage to be collected.
+ *
+ ****************************************************************************/
+
+#if (defined(CONFIG_BUILD_PROTECTED) || defined(CONFIG_BUILD_KERNEL)) && \
+     defined(CONFIG_MM_KERNEL_HEAP)
+static inline bool sched_have_kgarbage(void)
+{
+  return (g_delayed_kfree.head != NULL);
+}
+#else
+#  define sched_have_kgarbage() false
+#endif
+
+/****************************************************************************
  * Public Functions
  ****************************************************************************/
+
 /****************************************************************************
- * Name: sched_garbagecollection
+ * Name: sched_garbage_collection
  *
  * Description:
  *   Clean-up memory de-allocations that we queued because they could not
@@ -195,7 +228,7 @@ static inline void sched_kcleanup(void)
  *
  ****************************************************************************/
 
-void sched_garbagecollection(void)
+void sched_garbage_collection(void)
 {
   /* Handle deferred deallocations for the kernel heap */
 
@@ -204,4 +237,32 @@ void sched_garbagecollection(void)
   /* Handle deferred deallocations for the user heap */
 
   sched_kucleanup();
+}
+
+/****************************************************************************
+ * Name: sched_have_garbage
+ *
+ * Description:
+ *   Return TRUE if there is garbage to be collected.
+ *
+ *   Is is not a good idea for the IDLE threads to take the KMM semaphore.
+ *   That can cause the IDLE thread to take processing time from higher
+ *   priority tasks.  The IDLE threads will only take the KMM semaphore if
+ *   there is garbage to be collected.
+ *
+ *   Certainly there is a race condition involved in sampling the garbage
+ *   state.  The looping nature of the IDLE loops should catch any missed
+ *   garbage from the test on the next time arround.
+ *
+ * Input parameters:
+ *   None
+ *
+ * Returned Value:
+ *   TRUE if there is garbage to be collected.
+ *
+ ****************************************************************************/
+
+bool sched_have_garbage(void)
+{
+  return (sched_have_kgarbage() || sched_have_kugarbage());
 }

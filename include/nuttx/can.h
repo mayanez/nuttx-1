@@ -51,6 +51,10 @@
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/ioctl.h>
 
+#ifdef CONFIG_CAN_TXREADY
+#  include <nuttx/wqueue.h>
+#endif
+
 #ifdef CONFIG_CAN
 
 /************************************************************************************
@@ -70,6 +74,12 @@
  * CONFIG_CAN_LOOPBACK - A CAN driver may or may not support a loopback
  *   mode for testing. If the driver does support loopback mode, the setting
  *   will enable it. (If the driver does not, this setting will have no effect).
+ * CONFIG_CAN_TXREADY - Add support for the can_txready() callback.  This is needed
+ *   only for CAN hardware the supports an separate H/W TX message FIFO.  The call
+ *   back is needed to keep the S/W FIFO and the H/W FIFO in sync.  Work queue
+ *   support is needed for this feature.
+ * CONFIG_CAN_TXREADY_HIPRI or CONFIG_CAN_TXREADY_LOPRI - Selects which work queue
+ *   will be used for the can_txready() processing.
  */
 
 /* Default configuration settings that may be overridden in the NuttX configuration
@@ -197,19 +207,95 @@
 
 /* CAN Error Indications ************************************************************/
 
-#define CAN_ERROR_SYSTEM          (1 << 0)  /* Bit 0:  Driver internal error */
-#define CAN_ERROR_RXLOST          (1 << 1)  /* Bit 1:  RX Message Lost */
-#define CAN_ERROR_TXLOST          (1 << 2)  /* Bit 2:  TX Message Lost */
-#define CAN_ERROR_ACCESS          (1 << 3)  /* Bit 3:  RAM Access Failure */
-#define CAN_ERROR_TIMEOUT         (1 << 4)  /* Bit 4:  Timeout Occurred */
-#define CAN_ERROR_PASSIVE         (1 << 5)  /* Bit 5:  Error Passive */
-#define CAN_ERROR_CRC             (1 << 6)  /* Bit 6:  RX CRC Error */
-#define CAN_ERROR_BIT             (1 << 7)  /* Bit 7:  Bit Error */
-#define CAN_ERROR_ACK             (1 << 8)  /* Bit 8:  Acknowledge Error */
-#define CAN_ERROR_FORMAT          (1 << 9)  /* Bit 9:  Format Error */
-#define CAN_ERROR_STUFF           (1 << 10) /* Bit 10: Stuff Error */
+#ifdef CONFIG_CAN_ERRORS
+/* Bit settings in the ch_id field of the CAN error message (when ch_error is set) */
 
-#define CAN_ERROR_ALL             (0x07ff)
+#  define CAN_ERROR_TXTIMEOUT     (1 << 0) /* Bit 0: TX timeout */
+#  define CAN_ERROR_LOSTARB       (1 << 1) /* Bit 1: Lost arbitration (See CAN_ERROR0_* definitions) */
+#  define CAN_ERROR_CONTROLLER    (1 << 2) /* Bit 2: Controller error (See CAN_ERROR1_* definitions) */
+#  define CAN_ERROR_PROTOCOL      (1 << 3) /* Bit 3: Protocol error (see CAN_ERROR1_* and CAN_ERROR3_* definitions) */
+#  define CAN_ERROR_TRANSCEIVER   (1 << 4) /* Bit 4: Transceiver error (See CAN_ERROR4_* definitions)    */
+#  define CAN_ERROR_NOACK         (1 << 5) /* Bit 5: No ACK received on transmission */
+#  define CAN_ERROR_BUSOFF        (1 << 6) /* Bit 6: Bus off */
+#  define CAN_ERROR_BUSERROR      (1 << 7) /* Bit 7: Bus error */
+#  define CAN_ERROR_RESTARTED     (1 << 8) /* Bit 8: Controller restarted */
+                                           /* Bits 9-10: Available */
+
+/* The remaining definitions described the error report payload that follows the
+ * CAN header.
+ */
+
+#  define CAN_ERROR_DLC           (8)      /* DLC of error report */
+
+/* Data[0]: Arbitration lost in ch_error. */
+
+#  define CAN_ERROR0_UNSPEC       0x00     /* Unspecified error */
+#  define CAN_ERROR0_BIT(n)       (n)      /* Bit number in the bit stream */
+
+/* Data[1]:  Error status of CAN-controller */
+
+#  define CAN_ERROR1_UNSPEC       0x00     /* Unspecified error */
+#  define CAN_ERROR1_RXOVERFLOW   (1 << 0) /* Bit 0: RX buffer overflow */
+#  define CAN_ERROR1_TXOVERFLOW   (1 << 1) /* Bit 1: TX buffer overflow */
+#  define CAN_ERROR1_RXWARNING    (1 << 2) /* Bit 2: Reached warning level for RX errors */
+#  define CAN_ERROR1_TXWARNING    (1 << 3) /* Bit 3: Reached warning level for TX errors */
+#  define CAN_ERROR1_RXPASSIVE    (1 << 4) /* Bit 4: Reached passive level for RX errors */
+#  define CAN_ERROR1_TXPASSIVE    (1 << 5) /* Bit 5: Reached passive level for TX errors */
+                                           /* Bits 6-7: Available */
+
+/* Data[2]:  Error in CAN protocol.  This provides the type of the error. */
+
+#  define CAN_ERROR2_UNSPEC       0x00     /* Unspecified error */
+#  define CAN_ERROR2_BIT          (1 << 0) /* Bit 0: Single bit error */
+#  define CAN_ERROR2_FORM         (1 << 1) /* Bit 1: Frame format error */
+#  define CAN_ERROR2_STUFF        (1 << 2) /* Bit 2: Bit stuffing error */
+#  define CAN_ERROR2_BIT0         (1 << 3) /* Bit 3: Unable to send dominant bit */
+#  define CAN_ERROR2_BIT1         (1 << 4) /* Bit 4: Unable to send recessive bit */
+#  define CAN_ERROR2_OVERLOAD     (1 << 5) /* Bit 5: Bus overload */
+#  define CAN_ERROR2_ACTIVE       (1 << 6) /* Bit 6: Active error announcement */
+#  define CAN_ERROR2_TX           (1 << 7) /* Bit 7: Error occured on transmission */
+
+/* Data[3]:  Error in CAN protocol.  This provides the loation of the error. */
+
+#  define CAN_ERROR3_UNSPEC       0x00 /* Unspecified error */
+#  define CAN_ERROR3_SOF          0x01 /* start of frame */
+#  define CAN_ERROR3_ID0          0x02 /* ID bits 0-4 */
+#  define CAN_ERROR3_ID1          0x03 /* ID bits 5-12 */
+#  define CAN_ERROR3_ID2          0x04 /* ID bits 13-17 */
+#  define CAN_ERROR3_ID3          0x05 /* ID bits 21-28 */
+#  define CAN_ERROR3_ID4          0x06 /* ID bits 18-20 */
+#  define CAN_ERROR3_IDE          0x07 /* Identifier extension */
+#  define CAN_ERROR3_RTR          0x08 /* RTR */
+#  define CAN_ERROR3_SRTR         0x09 /* Substitute RTR */
+#  define CAN_ERROR3_RES0         0x0a /* Reserved bit 0 */
+#  define CAN_ERROR3_RES1         0x0b /* Reserved bit 1 */
+#  define CAN_ERROR3_DLC          0x0c /* Data length code */
+#  define CAN_ERROR3_DATA         0x0d /* Data section */
+#  define CAN_ERROR3_CRCSEQ       0x0e /* CRC sequence */
+#  define CAN_ERROR3_CRCDEL       0x0f /* CRC delimiter */
+#  define CAN_ERROR3_ACK          0x10 /* ACK slot */
+#  define CAN_ERROR3_ACKDEL       0x11 /* ACK delimiter */
+#  define CAN_ERROR3_EOF          0x12 /* End of frame */
+#  define CAN_ERROR3_INTERM       0x13 /* Intermission */
+
+/* Data[4]: Error status of CAN-transceiver */
+
+#  define CAN_ERROR4_UNSPEC       0x00
+
+#  define CANH_ERROR4_MASK        0x0f /* Bits 0-3: CANH */
+#  define CANH_ERROR4_NOWIRE      0x01
+#  define CANH_ERROR4_SHORT2BAT   0x02
+#  define CANH_ERROR4_SHORT2VCC   0x03
+#  define CANH_ERROR4_SHORT2GND   0x04
+
+#  define CANL_ERROR4_MASK        0xf0 /* Bits 0-3: CANL */
+#  define CANL_ERROR4_NOWIRE      0x10
+#  define CANL_ERROR4_SHORT2BAT   0x20
+#  define CANL_ERROR4_SHORT2VCC   0x30
+#  define CANL_ERROR4_SHORT2GND   0x40
+#  define CANL_ERROR4_SHORT2CANH  0x50
+
+#endif /* CONFIG_CAN_ERRORS */
 
 /* CAN filter support ***************************************************************/
 /* Some CAN hardware supports a notion of prioritizing messages that match filters.
@@ -262,6 +348,8 @@
  * NOTE: The error indication if valid only on message reports received from the
  * CAN driver; it is ignored on transmission.  When the error bit is set, the
  * message ID is an encoded set of error indications (see CAN_ERROR_* definitions).
+ * A more detailed report of certain errors then follows in message payload.
+ * CONFIG_CAN_ERRORS=y is required in order to receive error reports.
  *
  * The struct can_msg_s holds this information in a user-friendly, unpacked form.
  * This is the form that is used at the read() and write() driver interfaces.  The
@@ -275,7 +363,9 @@ struct can_hdr_s
   uint32_t     ch_id;         /* 11- or 29-bit ID (20- or 3-bits unused) */
   uint8_t      ch_dlc    : 4; /* 4-bit DLC */
   uint8_t      ch_rtr    : 1; /* RTR indication */
+#ifdef CONFIG_CAN_ERRORS
   uint8_t      ch_error  : 1; /* 1=ch_id is an error report */
+#endif
   uint8_t      ch_extid  : 1; /* Extended ID indication */
   uint8_t      ch_unused : 1; /* Unused */
 } packed_struct;
@@ -285,7 +375,9 @@ struct can_hdr_s
   uint16_t     ch_id;         /* 11-bit standard ID (5-bits unused) */
   uint8_t      ch_dlc    : 4; /* 4-bit DLC.  May be encoded in CAN_FD mode. */
   uint8_t      ch_rtr    : 1; /* RTR indication */
+#ifdef CONFIG_CAN_ERRORS
   uint8_t      ch_error  : 1; /* 1=ch_id is an error report */
+#endif
   uint8_t      ch_unused : 2; /* Unused */
 } packed_struct;
 #endif
@@ -405,6 +497,9 @@ struct can_dev_s
   sem_t                cd_closesem;      /* Locks out new opens while close is in progress */
   struct can_txfifo_s  cd_xmit;          /* Describes transmit FIFO */
   struct can_rxfifo_s  cd_recv;          /* Describes receive FIFO */
+#ifdef CONFIG_CAN_TXREADY
+  struct work_s        cd_work;          /* Use to manage can_txready() work */
+#endif
                                          /* List of pending RTR requests */
   struct can_rtrwait_s cd_rtr[CONFIG_CAN_NPENDINGRTR];
   FAR const struct can_ops_s *cd_ops;    /* Arch-specific operations */
@@ -495,12 +590,12 @@ int can_register(FAR const char *path, FAR struct can_dev_s *dev);
  * Description:
  *   Called from the CAN interrupt handler when new read data is available
  *
- * Parameters:
+ * Input Parameters:
  *   dev  - The specific CAN device
  *   hdr  - The 16-bit CAN header
  *   data - An array contain the CAN data.
  *
- * Return:
+ * Returned Value:
  *   OK on success; a negated errno on failure.
  *
  ************************************************************************************/
@@ -512,17 +607,135 @@ int can_receive(FAR struct can_dev_s *dev, FAR struct can_hdr_s *hdr,
  * Name: can_txdone
  *
  * Description:
- *   Called from the CAN interrupt handler at the completion of a send operation.
+ *   Called when the hardware has processed the outgoing TX message.  This
+ *   normally means that the CAN messages was sent out on the wire.  But
+ *   if the CAN hardware supports a H/W TX FIFO, then this call may mean
+ *   only that the CAN message has been added to the H/W FIFO.  In either
+ *   case, the upper-half CAN driver can remove the outgoing message from
+ *   the S/W FIFO and discard it.
  *
- * Parameters:
+ *   This function may be called in different contexts, depending upon the
+ *   nature of the underlying CAN hardware.
+ *
+ *   1. No H/W TX FIFO (CONFIG_CAN_TXREADY not defined)
+ *
+ *      This function is only called from the CAN interrupt handler at the
+ *      completion of a send operation.
+ *
+ *        can_write() -> can_xmit() -> dev_send()
+ *        CAN interrupt -> can_txdone()
+ *
+ *      If the CAN hardware is busy, then the call to dev_send() will
+ *      fail, the S/W TX FIFO will accumulate outgoing messages, and the
+ *      thread calling can_write() may eventually block waiting for space in
+ *      the S/W TX FIFO.
+ *
+ *      When the CAN hardware completes the transfer and processes the
+ *      CAN interrupt, the call to can_txdone() will make space in the S/W
+ *      TX FIFO and will awaken the waiting can_write() thread.
+ *
+ *   2a. H/W TX FIFO (CONFIG_CAN_TXREADY=y) and S/W TX FIFO not full
+ *
+ *      This function will be called back from dev_send() immediately when a
+ *      new CAN message is added to H/W TX FIFO:
+ *
+ *        can_write() -> can_xmit() -> dev_send() -> can_txdone()
+ *
+ *      When the H/W TX FIFO becomes full, dev_send() will fail and
+ *      can_txdone() will not be called.  In this case the S/W TX FIFO will
+ *      accumulate outgoing messages, and the thread calling can_write() may
+ *      eventually block waiting for space in the S/W TX FIFO.
+ *
+ *   2b. H/W TX FIFO (CONFIG_CAN_TXREADY=y) and S/W TX FIFO full
+ *
+ *      In this case, the thread calling can_write() is blocked waiting for
+ *      space in the S/W TX FIFO.  can_txdone() will be called, indirectly,
+ *      from can_txready_work() running on the thread of the work queue.
+ *
+ *        CAN interrupt -> can_txready() -> Schedule can_txready_work()
+ *        can_txready_work() -> can_xmit() -> dev_send() -> can_txdone()
+ *
+ *      The call dev_send() should not fail in this case and the subsequent
+ *      call to can_txdone() will make space in the S/W TX FIFO and will
+ *      awaken the waiting thread.
+ *
+ * Input Parameters:
  *   dev  - The specific CAN device
+ *   hdr  - The 16-bit CAN header
+ *   data - An array contain the CAN data.
  *
- * Return:
+ * Returned Value:
  *   OK on success; a negated errno on failure.
+ *
+ * Assumptions:
+ *   Interrupts are disabled.  This is required by can_xmit() which is called
+ *   by this function.  Interrupts are explicitly disabled when called
+ *   through can_write().  Interrupts are expected be disabled when called
+ *   from the CAN interrupt handler.
  *
  ************************************************************************************/
 
 int can_txdone(FAR struct can_dev_s *dev);
+
+/************************************************************************************
+ * Name: can_txready
+ *
+ * Description:
+ *   Called from the CAN interrupt handler at the completion of a send
+ *   operation.  This interface is needed only for CAN hardware that
+ *   supports queing of outgoing messages in a H/W FIFO.
+ *
+ *   The CAN upper half driver also supports a queue of output messages in a
+ *   S/W FIFO.  Messages are added to that queue when when can_write() is
+ *   called and removed from the queue in can_txdone() when each TX message
+ *   is complete.
+ *
+ *   After each message is added to the S/W FIFO, the CAN upper half driver
+ *   will attempt to send the message by calling into the lower half driver.
+ *   That send will not be performed if the lower half driver is busy, i.e.,
+ *   if dev_txready() returns false.  In that case, the number of messages in
+ *   the S/W FIFO can grow.  If the S/W FIFO becomes full, then can_write()
+ *   will wait for space in the S/W FIFO.
+ *
+ *   If the CAN hardware does not support a H/W FIFO then busy means that
+ *   the hardware is actively sending the message and is guaranteed to
+ *   become non-busy (i.e, dev_txready()) when the send transfer completes
+ *   and can_txdone() is called.  So the call to can_txdone() means that the
+ *   transfer has completed and also that the hardware is ready to accept
+ *   another transfer.
+ *
+ *   If the CAN hardware supports a H/W FIFO, can_txdone() is not called
+ *   when the tranfer is complete, but rather when the transfer is queued in
+ *   the H/W FIFO.  When the H/W FIFO becomes full, then dev_txready() will
+ *   report false and the number of queued messages in the S/W FIFO will grow.
+ *
+ *   There is no mechanism in this case to inform the upper half driver when
+ *   the hardware is again available, when there is again space in the H/W
+ *   FIFO.  can_txdone() will not be called again.  If the S/W FIFO becomes
+ *   full, then the upper half driver will wait for space to become
+ *   available, but there is no event to awaken it and the driver will hang.
+ *
+ *   Enabling this feature adds support for the can_txready() interface.
+ *   This function is called from the lower half driver's CAN interrupt
+ *   handler each time a TX transfer completes.  This is a sure indication
+ *   that the H/W FIFO is no longer full.  can_txready() will then awaken
+ *   the can_write() logic and the hang condition is avoided.
+ *
+ * Input Parameters:
+ *   dev  - The specific CAN device
+ *
+ * Returned Value:
+ *   OK on success; a negated errno on failure.
+ *
+ * Assumptions:
+ *   Interrupts are disabled.  This function may execute in the context of
+ *   and interrupt handler.
+ *
+ ************************************************************************************/
+
+#ifdef CONFIG_CAN_TXREADY
+int can_txready(FAR struct can_dev_s *dev);
+#endif
 
 #undef EXTERN
 #if defined(__cplusplus)

@@ -45,37 +45,9 @@
 #include <debug.h>
 
 #include <nuttx/arch.h>
-#include <arch/irq.h>
+#include <nuttx/irq.h>
 
 #include "clock/clock.h"
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/****************************************************************************
- * Private Type Declarations
- ****************************************************************************/
-
-/****************************************************************************
- * Private Function Prototypes
- ****************************************************************************/
-
-/****************************************************************************
- * Public Constant Data
- ****************************************************************************/
-
-/****************************************************************************
- * Public Data
- ****************************************************************************/
-
-/****************************************************************************
- * Private Variables
- ****************************************************************************/
-
-/****************************************************************************
- * Private Functions
- ****************************************************************************/
 
 /****************************************************************************
  * Public Functions
@@ -109,7 +81,7 @@ int clock_settime(clockid_t clock_id, FAR const struct timespec *tp)
        * possible.
        */
 
-      flags = irqsave();
+      flags = enter_critical_section();
 
       /* Get the elapsed time since power up (in milliseconds).  This is a
        * bias value that we need to use to correct the base time.
@@ -146,7 +118,7 @@ int clock_settime(clockid_t clock_id, FAR const struct timespec *tp)
           up_rtc_settime(tp);
         }
 #endif
-      irqrestore(flags);
+      leave_critical_section(flags);
 
       sdbg("basetime=(%ld,%lu) bias=(%ld,%lu)\n",
           (long)g_basetime.tv_sec, (unsigned long)g_basetime.tv_nsec,

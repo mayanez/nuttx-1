@@ -4,6 +4,10 @@
  *
  *   Copyright (C) 2015 Omni Hoverboards Inc. All rights reserved.
  *   Author: Paul Alexander Patience <paul-a.patience@polymtl.ca>
+ *   Updated by: Karim Keddam <karim.keddam@polymtl.ca>
+ *
+ *   Copyright (C) 2016 Gregory Nutt. All rights reserved.
+ *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -47,7 +51,7 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/arch.h>
-#include <nuttx/i2c.h>
+#include <nuttx/i2c/i2c_master.h>
 #include <nuttx/sensors/ms58xx.h>
 
 #if defined(CONFIG_I2C) && defined(CONFIG_MS58XX)
@@ -55,6 +59,11 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+#ifndef CONFIG_MS58XX_I2C_FREQUENCY
+#  define CONFIG_MS58XX_I2C_FREQUENCY 400000
+#endif
+
 /* Register Definitions *****************************************************/
 /* Register Addresses */
 
@@ -74,18 +83,18 @@
 
 struct ms58xx_dev_s
 {
-  FAR struct i2c_dev_s *i2c;   /* I2C interface */
-  uint8_t               addr;  /* I2C address */
+  FAR struct i2c_master_s *i2c; /* I2C interface */
+  uint8_t               addr;   /* I2C address */
 
   enum ms58xx_model_e   model;
   uint8_t               crcindex;
   uint8_t               crcshift;
 
-  int32_t               temp;  /* Uncompensated temperature (degrees Centigrade) */
-  int32_t               press; /* Uncompensated pressure (millibar) */
+  int32_t               temp;   /* Uncompensated temperature (degrees Centigrade) */
+  int32_t               press;  /* Uncompensated pressure (millibar) */
 
-  uint8_t               osr;   /* Oversampling ratio bits */
-  useconds_t            delay; /* Oversampling ratio delay */
+  uint8_t               osr;    /* Oversampling ratio bits */
+  useconds_t            delay;  /* Oversampling ratio delay */
 
   /* Calibration coefficients */
 
@@ -130,10 +139,14 @@ struct ms58xx_dev_s
  ****************************************************************************/
 /* CRC Calculation */
 
-static uint8_t ms58xx_crc(FAR const uint8_t *src, size_t len);
+static uint8_t ms58xx_crc(FAR uint16_t *src, uint8_t crcIndex);
 
 /* I2C Helpers */
 
+static int ms58xx_i2c_write(FAR struct ms58xx_dev_s *priv,
+                             FAR const uint8_t *buffer, int buflen);
+static int ms58xx_i2c_read(FAR struct ms58xx_dev_s *priv,
+                            FAR uint8_t *buffer, int buflen);
 static int ms58xx_readu16(FAR struct ms58xx_dev_s *priv, uint8_t regaddr,
                           FAR uint16_t *regval);
 static int ms58xx_readadc(FAR struct ms58xx_dev_s *priv, FAR uint32_t *adc);
@@ -187,29 +200,96 @@ static const struct file_operations g_fops =
  *
  ****************************************************************************/
 
-static uint8_t ms58xx_crc(FAR const uint8_t *src, size_t len)
+static uint8_t ms58xx_crc(FAR uint16_t *src, uint8_t crcIndex)
 {
-  uint16_t crc = 0;
-  size_t   i;
-  int      j;
+  uint16_t cnt;
+  uint16_t n_rem;
+  uint16_t crc_read;
+  uint8_t n_bit;
 
-  for (i = 0; i < len; i++)
+  n_rem = 0x00;
+  crc_read = src[crcIndex];
+  src[crcIndex] = (0xff00 & (src[7]));
+
+  for (cnt = 0; cnt < 16; cnt++)
     {
-      crc ^= src[i];
-
-      for (j = 0; j < 8; j++)
+      if (cnt % 2 == 1)
         {
-          bool xor = (crc & 0x8000) != 0;
+          n_rem ^= (uint16_t)((src[cnt >> 1]) & 0x00ff);
+        }
+      else
+        {
+          n_rem ^= (uint16_t)(src[cnt >> 1] >> 8);
+        }
 
-          crc <<= 1;
-          if (xor)
+      for (n_bit = 8; n_bit > 0; n_bit--)
+        {
+          if (n_rem & (0x8000))
             {
-              crc ^= 0x3000;
+              n_rem = (n_rem << 1) ^ 0x3000;
+            }
+          else
+            {
+              n_rem = (n_rem << 1);
             }
         }
     }
 
-  return (uint8_t)(crc >> 12);
+  n_rem = (0x000F & (n_rem >> 12));
+  src[crcIndex] = crc_read;
+  return (n_rem ^ 0x00);
+}
+
+/****************************************************************************
+ * Name: ms58xx_i2c_write
+ *
+ * Description:
+ *   Write to the I2C device.
+ *
+ ****************************************************************************/
+
+static int ms58xx_i2c_write(FAR struct ms58xx_dev_s *priv,
+                             FAR const uint8_t *buffer, int buflen)
+{
+  struct i2c_msg_s msg;
+
+  /* Setup for the transfer */
+
+  msg.frequency = CONFIG_MS58XX_I2C_FREQUENCY,
+  msg.addr      = priv->addr;
+  msg.flags     = 0;
+  msg.buffer    = (FAR uint8_t *)buffer;  /* Override const */
+  msg.length    = buflen;
+
+  /* Then perform the transfer. */
+
+  return I2C_TRANSFER(priv->i2c, &msg, 1);
+}
+
+/****************************************************************************
+ * Name: ms58xx_i2c_read
+ *
+ * Description:
+ *   Read from the I2C device.
+ *
+ ****************************************************************************/
+
+static int ms58xx_i2c_read(FAR struct ms58xx_dev_s *priv,
+                            FAR uint8_t *buffer, int buflen)
+{
+  struct i2c_msg_s msg;
+
+  /* Setup for the transfer */
+
+  msg.frequency = CONFIG_MS58XX_I2C_FREQUENCY,
+  msg.addr      = priv->addr,
+  msg.flags     = I2C_M_READ;
+  msg.buffer    = buffer;
+  msg.length    = buflen;
+
+  /* Then perform the transfer. */
+
+  return I2C_TRANSFER(priv->i2c, &msg, 1);
 }
 
 /****************************************************************************
@@ -230,20 +310,19 @@ static int ms58xx_readu16(FAR struct ms58xx_dev_s *priv, uint8_t regaddr,
 
   /* Write the register address */
 
-  I2C_SETADDRESS(priv->i2c, priv->addr, 7);
-  ret = I2C_WRITE(priv->i2c, &regaddr, sizeof(regaddr));
+  ret = ms58xx_i2c_write(priv, &regaddr, sizeof(regaddr));
   if (ret < 0)
     {
-      sndbg("I2C_WRITE failed: %d\n", ret);
+      sndbg("i2c_write failed: %d\n", ret);
       return ret;
     }
 
   /* Restart and read 16 bits from the register */
 
-  ret = I2C_READ(priv->i2c, buffer, sizeof(buffer));
+  ret = ms58xx_i2c_read(priv, buffer, sizeof(buffer));
   if (ret < 0)
     {
-      sndbg("I2C_READ failed: %d\n", ret);
+      sndbg("i2c_read failed: %d\n", ret);
       return ret;
     }
 
@@ -271,20 +350,19 @@ static int ms58xx_readadc(FAR struct ms58xx_dev_s *priv, FAR uint32_t *adc)
 
   /* Write the register address */
 
-  I2C_SETADDRESS(priv->i2c, priv->addr, 7);
-  ret = I2C_WRITE(priv->i2c, &regaddr, sizeof(regaddr));
+  ret = ms58xx_i2c_write(priv, &regaddr, sizeof(regaddr));
   if (ret < 0)
     {
-      sndbg("I2C_WRITE failed: %d\n", ret);
+      sndbg("i2c_write failed: %d\n", ret);
       return ret;
     }
 
   /* Restart and read 24 bits from the register */
 
-  ret = I2C_READ(priv->i2c, buffer, sizeof(buffer));
+  ret = ms58xx_i2c_read(priv, buffer, sizeof(buffer));
   if (ret < 0)
     {
-      sndbg("I2C_READ failed: %d\n", ret);
+      sndbg("i2c_read failed: %d\n", ret);
       return ret;
     }
 
@@ -405,9 +483,12 @@ static int ms58xx_readprom(FAR struct ms58xx_dev_s *priv)
         break;
     }
 
+  /* We have to wait before the prom is ready is be read */
+
+  up_udelay(10000);
   for (i = 0; i < len; i++)
     {
-      ret = ms58xx_readu16(priv, MS58XX_PROM_REG+i*2, prom+i);
+      ret = ms58xx_readu16(priv, MS58XX_PROM_REG + i * 2, prom + i);
       if (ret < 0)
         {
           sndbg("ms58xx_readu16 failed: %d\n", ret);
@@ -417,9 +498,8 @@ static int ms58xx_readprom(FAR struct ms58xx_dev_s *priv)
 
   crcmask         = (uint16_t)0xf << crcshift;
   crc             = (uint8_t)((prom[crcindex] & crcmask) >> crcshift);
-  prom[crcindex] &= ~crcmask;
 
-  if (crc != ms58xx_crc((uint8_t *)prom, sizeof(prom)))
+  if (crc != ms58xx_crc(prom, crcindex))
     {
       sndbg("crc mismatch\n");
       return -ENODEV;
@@ -477,11 +557,10 @@ static int ms58xx_reset(FAR struct ms58xx_dev_s *priv)
 
   /* Write the register address */
 
-  I2C_SETADDRESS(priv->i2c, priv->addr, 7);
-  ret = I2C_WRITE(priv->i2c, &regaddr, sizeof(regaddr));
+  ret = ms58xx_i2c_write(priv, &regaddr, sizeof(regaddr));
   if (ret < 0)
     {
-      sndbg("I2C_WRITE failed: %d\n", ret);
+      sndbg("i2c_write failed: %d\n", ret);
       return ret;
     }
 
@@ -514,11 +593,10 @@ static int ms58xx_convert(FAR struct ms58xx_dev_s *priv, uint8_t regaddr,
 
   /* Write the register address */
 
-  I2C_SETADDRESS(priv->i2c, priv->addr, 7);
-  ret = I2C_WRITE(priv->i2c, &regaddr, sizeof(regaddr));
+  ret = ms58xx_i2c_write(priv, &regaddr, sizeof(regaddr));
   if (ret < 0)
     {
-      sndbg("I2C_WRITE failed: %d\n", ret);
+      sndbg("i2c_write failed: %d\n", ret);
     }
 
   /* Wait for the conversion to end */
@@ -580,7 +658,7 @@ static int ms58xx_measure(FAR struct ms58xx_dev_s *priv)
       return ret;
     }
 
-  diff = (int32_t)rawtemp - (int32_t)priv->c5 / ((int32_t)1 << 8);
+  diff = (int32_t)rawtemp - (int32_t)priv->c5 * ((int32_t)1 << 8);
   temp = (int32_t)((int64_t)2000 +
                    (int64_t)diff * (int64_t)priv->c6 / ((int64_t)1 << 23));
 
@@ -820,7 +898,7 @@ static int ms58xx_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
  *
  ****************************************************************************/
 
-int ms58xx_register(FAR const char *devpath, FAR struct i2c_dev_s *i2c,
+int ms58xx_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
                     uint8_t addr, uint16_t osr, enum ms58xx_model_e model)
 {
   FAR struct ms58xx_dev_s *priv;

@@ -93,7 +93,7 @@ static int     binfs_stat(FAR struct inode *mountpt, FAR const char *relpath,
                           FAR struct stat *buf);
 
 /****************************************************************************
- * Private Variables
+ * Private Data
  ****************************************************************************/
 
 /****************************************************************************
@@ -171,7 +171,7 @@ static int binfs_open(FAR struct file *filep, FAR const char *relpath,
 
   /* Save the index as the open-specific state in filep->f_priv */
 
-  filep->f_priv = (FAR void *)index;
+  filep->f_priv = (FAR void *)((uintptr_t)index);
   return OK;
 }
 
@@ -223,7 +223,7 @@ static int binfs_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         }
       else
         {
-          *ptr = builtin_getname((int)filep->f_priv);
+          *ptr = builtin_getname((int)((uintptr_t)filep->f_priv));
           ret = OK;
         }
     }

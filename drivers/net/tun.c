@@ -96,7 +96,6 @@
  */
 
 #define TUN_WDDELAY   (1*CLK_TCK)
-#define TUN_POLLHSEC  (1*2)
 
 /****************************************************************************
  * Private Types
@@ -325,6 +324,8 @@ static void tun_pollnotify(FAR struct tun_device_s *priv, pollevent_t eventset)
 
 static int tun_transmit(FAR struct tun_device_s *priv)
 {
+  NETDEV_TXPACKETS(&priv->dev);
+
   /* Verify that the hardware is ready to send another packet.  If we get
    * here, then we are committed to sending a packet; Higher level logic
    * must have assured that there is no transmission in progress.
@@ -413,6 +414,8 @@ static void tun_receive(FAR struct tun_device_s *priv)
    * data in priv->dev.d_len
    */
 
+  NETDEV_RXPACKETS(&priv->dev);
+
 #ifdef CONFIG_NET_PKT
   /* When packet sockets are enabled, feed the frame into the packet tap */
 
@@ -421,68 +424,54 @@ static void tun_receive(FAR struct tun_device_s *priv)
 
   /* We only accept IP packets of the configured type and ARP packets */
 
-#ifdef CONFIG_NET_IPv4
+#if defined(CONFIG_NET_IPv4)
+  nllvdbg("IPv4 frame\n");
+  NETDEV_RXIPV4(&priv->dev);
+
+  /* Give the IPv4 packet to the network layer */
+
+  ipv4_input(&priv->dev);
+
+  /* If the above function invocation resulted in data that should be
+   * sent out on the network, the field  d_len will set to a value > 0.
+   */
+
+  if (priv->dev.d_len > 0)
     {
-      nllvdbg("IPv4 frame\n");
-
-      /* Give the IPv4 packet to the network layer */
-
-      ipv4_input(&priv->dev);
-
-      /* If the above function invocation resulted in data that should be
-       * sent out on the network, the field  d_len will set to a value > 0.
-       */
-
-      if (priv->dev.d_len > 0)
-        {
-          priv->write_d_len = priv->dev.d_len;
-          tun_transmit(priv);
-        }
-      else
-        {
-          priv->write_d_len = 0;
-          tun_pollnotify(priv, POLLOUT);
-        }
+      priv->write_d_len = priv->dev.d_len;
+      tun_transmit(priv);
     }
-#endif
-
-#if 0
-#ifdef CONFIG_NET_IPv6
-  if (BUF->type == HTONS(ETHTYPE_IP6))
+  else
     {
-      nllvdbg("Iv6 frame\n");
-
-      /* Give the IPv6 packet to the network layer */
-
-      ipv6_input(&priv->dev);
-
-      /* If the above function invocation resulted in data that should be
-       * sent out on the network, the field  d_len will set to a value > 0.
-       */
-
-      if (priv->dev.d_len > 0)
-        {
-          /* Update the Ethernet header with the correct MAC address */
-
-#ifdef CONFIG_NET_IPv4
-          if (IFF_IS_IPv4(priv->dev.d_flags))
-            {
-              arp_out(&priv->dev);
-            }
-          else
-#endif
-#ifdef CONFIG_NET_IPv6
-            {
-              neighbor_out(&priv->dev);
-            }
-#endif
-
-          /* And send the packet */
-
-          tun_transmit(priv);
-        }
+      priv->write_d_len = 0;
+      tun_pollnotify(priv, POLLOUT);
     }
-#endif
+
+#elif defined(CONFIG_NET_IPv6)
+  nllvdbg("Iv6 frame\n");
+  NETDEV_RXIPV6(&priv->dev);
+
+  /* Give the IPv6 packet to the network layer */
+
+  ipv6_input(&priv->dev);
+
+  /* If the above function invocation resulted in data that should be
+   * sent out on the network, the field  d_len will set to a value > 0.
+   */
+
+  if (priv->dev.d_len > 0)
+    {
+      priv->write_d_len = priv->dev.d_len;
+      tun_transmit(priv);
+    }
+  else
+    {
+      priv->write_d_len = 0;
+      tun_pollnotify(priv, POLLOUT);
+    }
+
+#else
+  NETDEV_RXDROPPED(&priv->dev);
 #endif
 }
 
@@ -506,6 +495,8 @@ static void tun_receive(FAR struct tun_device_s *priv)
 static void tun_txdone(FAR struct tun_device_s *priv)
 {
   /* Check for errors and update statistics */
+
+  NETDEV_TXDONE(&priv->dev);
 
   /* Then poll uIP for new XMIT data */
 
@@ -541,7 +532,7 @@ static void tun_poll_process(FAR struct tun_device_s *priv)
       /* If so, poll uIP for new XMIT data. */
 
       priv->dev.d_buf = priv->read_buf;
-      (void)devif_timer(&priv->dev, tun_txpoll, TUN_POLLHSEC);
+      (void)devif_timer(&priv->dev, tun_txpoll);
     }
 
   /* Setup the watchdog poll timer again */

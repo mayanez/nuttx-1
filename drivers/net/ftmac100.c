@@ -91,7 +91,6 @@
 /* TX poll delay = 1 seconds. CLK_TCK is the number of clock ticks per second */
 
 #define FTMAC100_WDDELAY   (1*CLK_TCK)
-#define FTMAC100_POLLHSEC  (1*2)
 
 /* TX timeout = 1 minute */
 
@@ -163,6 +162,7 @@ struct ftmac100_driver_s
   uint32_t iobase;
 
   /* NuttX net data */
+
   bool ft_bifup;               /* true:ifup false:ifdown */
   WDOG_ID ft_txpoll;           /* TX poll timer */
   WDOG_ID ft_txtimeout;        /* TX timeout timer */
@@ -284,7 +284,7 @@ static int ftmac100_transmit(FAR struct ftmac100_driver_s *priv)
   FAR struct ftmac100_txdes_s *txdes;
   int len = priv->ft_dev.d_len;
 //irqstate_t flags;
-//flags = irqsave();
+//flags = enter_critical_section();
 //nvdbg("flags=%08x\n", flags);
 
   txdes = ftmac100_current_txdes(priv);
@@ -293,8 +293,6 @@ static int ftmac100_transmit(FAR struct ftmac100_driver_s *priv)
    * here, then we are committed to sending a packet; Higher level logic
    * must have assured that there is no transmission in progress.
    */
-
-  /* Increment statistics */
 
   len = len < ETH_ZLEN ? ETH_ZLEN : len;
 
@@ -323,9 +321,9 @@ static int ftmac100_transmit(FAR struct ftmac100_driver_s *priv)
   /* Setup the TX timeout watchdog (perhaps restarting the timer) */
 
   (void)wd_start(priv->ft_txtimeout, FTMAC100_TXTIMEOUT,
-                 ftmac100_txtimeout_expiry, 1, (uint32_t)priv);
+                 ftmac100_txtimeout_expiry, 1, (wdparm_t)priv);
 
-//irqrestore(flags);
+//leave_critical_section(flags);
   return OK;
 }
 
@@ -669,10 +667,6 @@ static void ftmac100_receive(FAR struct ftmac100_driver_s *priv)
       nvdbg ("RX buffer %d (%08x), %x received (%d)\n",
              priv->rx_pointer, data, len, (rxdes->rxdes0 & FTMAC100_RXDES0_LRS));
 
-      /* Check for errors and update statistics */
-
-      /* Check if the packet is a valid size for the uIP buffer configuration */
-
       /* Copy the data data from the hardware to priv->ft_dev.d_buf.  Set
        * amount of data in priv->ft_dev.d_len
        */
@@ -810,7 +804,7 @@ static void ftmac100_txdone(FAR struct ftmac100_driver_s *priv)
 {
   FAR struct ftmac100_txdes_s *txdes;
 
-  /* Check for errors and update statistics */
+  /* Check if a Tx was pending */
 
   while (priv->tx_pending)
     {
@@ -843,7 +837,17 @@ static void ftmac100_txdone(FAR struct ftmac100_driver_s *priv)
 
   nvdbg("txpending=%d\n", priv->tx_pending);
 
+  /* Cancel the TX timeout */
+
   wd_cancel(priv->ft_txtimeout);
+
+  /* Then make sure that the TX poll timer is running (if it is already
+   * running, the following would restart it).  This is necessary to avoid
+   * certain race conditions where the polling sequence can be interrupted.
+   */
+
+  (void)wd_start(priv->ft_txpoll, FTMAC100_WDDELAY, ftmac100_poll_expiry, 1,
+                 (wdparm_t)priv);
 
   /* Then poll uIP for new XMIT data */
 
@@ -977,11 +981,11 @@ static void ftmac100_interrupt_work(FAR void *arg)
   /* Process pending Ethernet interrupts */
 
   state = net_lock();
-//flags = irqsave();
+//flags = enter_critical_section();
 
   ftmac100_interrupt_process(priv);
 
-//irqrestore(flags);
+//leave_critical_section(flags);
   net_unlock(state);
 
   /* Re-enable Ethernet interrupts */
@@ -1020,7 +1024,7 @@ static int ftmac100_interrupt(int irq, FAR void *context)
    * condition here.
    */
 
-  flags = irqsave();
+  flags = enter_critical_section();
 
   priv->status = getreg32 (&iobase->isr);
 
@@ -1051,7 +1055,7 @@ static int ftmac100_interrupt(int irq, FAR void *context)
 
   work_queue(HPWORK, &priv->ft_work, ftmac100_interrupt_work, priv, 0);
 
-  irqrestore(flags);
+  leave_critical_section(flags);
 #else
   /* Process the interrupt now */
   putreg32 (INT_MASK_ALL_DISABLED, &iobase->imr);
@@ -1081,8 +1085,6 @@ static int ftmac100_interrupt(int irq, FAR void *context)
 
 static inline void ftmac100_txtimeout_process(FAR struct ftmac100_driver_s *priv)
 {
-  /* Increment statistics and dump debug info */
-
   /* Then reset the hardware */
 
   nvdbg("TXTIMEOUT\n");
@@ -1198,11 +1200,12 @@ static inline void ftmac100_poll_process(FAR struct ftmac100_driver_s *priv)
    * we will missing TCP time state updates?
    */
 
-  (void)devif_timer(&priv->ft_dev, ftmac100_txpoll, FTMAC100_POLLHSEC);
+  (void)devif_timer(&priv->ft_dev, ftmac100_txpoll);
 
   /* Setup the watchdog poll timer again */
 
-  (void)wd_start(priv->ft_txpoll, FTMAC100_WDDELAY, ftmac100_poll_expiry, 1, priv);
+  (void)wd_start(priv->ft_txpoll, FTMAC100_WDDELAY, ftmac100_poll_expiry, 1,
+                 (wdparm_t)priv);
 }
 
 /****************************************************************************
@@ -1275,7 +1278,8 @@ static void ftmac100_poll_expiry(int argc, uint32_t arg, ...)
        * cycle.
        */
 
-      (void)wd_start(priv->ft_txpoll, FTMAC100_WDDELAY, ftmac100_poll_expiry, 1, arg);
+      (void)wd_start(priv->ft_txpoll, FTMAC100_WDDELAY, ftmac100_poll_expiry,
+                     1, (wdparm_t)arg);
     }
 
 #else
@@ -1336,7 +1340,8 @@ static int ftmac100_ifup(struct net_driver_s *dev)
 
   /* Set and activate a timer process */
 
-  (void)wd_start(priv->ft_txpoll, FTMAC100_WDDELAY, ftmac100_poll_expiry, 1, (uint32_t)priv);
+  (void)wd_start(priv->ft_txpoll, FTMAC100_WDDELAY, ftmac100_poll_expiry, 1,
+                 (wdparm_t)priv);
 
   /* Enable the Ethernet interrupt */
 
@@ -1369,7 +1374,7 @@ static int ftmac100_ifdown(struct net_driver_s *dev)
 
   /* Disable the Ethernet interrupt */
 
-  flags = irqsave();
+  flags = enter_critical_section();
   up_disable_irq(CONFIG_FTMAC100_IRQ);
 
   /* Cancel the TX poll timer and TX timeout timers */
@@ -1387,7 +1392,7 @@ static int ftmac100_ifdown(struct net_driver_s *dev)
   /* Mark the device "down" */
 
   priv->ft_bifup = false;
-  irqrestore(flags);
+  leave_critical_section(flags);
   return OK;
 }
 
@@ -1496,12 +1501,12 @@ static int ftmac100_txavail(struct net_driver_s *dev)
    * level processing.
    */
 
-  flags = irqsave();
+  flags = enter_critical_section();
 
   /* Perform the out-of-cycle poll now */
 
   ftmac100_txavail_process(priv);
-  irqrestore(flags);
+  leave_critical_section(flags);
 #endif
 
   return OK;

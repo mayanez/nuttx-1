@@ -71,6 +71,7 @@ include smartfs/Make.defs
 include binfs/Make.defs
 include procfs/Make.defs
 include unionfs/Make.defs
+include hostfs/Make.defs
 
 endif
 endif

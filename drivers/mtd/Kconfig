@@ -114,6 +114,14 @@ config MTD_NRDBLOCKS
 
 endif # MTD_READAHEAD
 
+config MTD_PROGMEM
+	bool "Enable on-chip program FLASH MTD device"
+	default n
+	---help---
+		Enable to support an MTD device that supports the on-chip FLASH
+		using the interfaces defined in include/nuttx/progmem.  Those
+		interfaces must be exported by chip-specific logic.
+
 config MTD_CONFIG
 	bool "Enable Dev Config (MTD based) device"
 	default n
@@ -260,6 +268,28 @@ config RAMMTD_FLASHSIM
 
 endif
 
+config FILEMTD
+	bool "File-based MTD driver"
+	default n
+	---help---
+		Build support for a File-based MTD driver.
+
+if FILEMTD
+
+config FILEMTD_BLOCKSIZE
+	int "File MTD block size"
+	default 512
+
+config FILEMTD_ERASESIZE
+	int "File MTD erase block size"
+	default 4096
+
+config FILEMTD_ERASESTATE
+	hex "Simulated erase state"
+	default 0xff
+
+endif
+
 config MTD_AT24XX
 	bool "I2C-based AT24xx eeprom"
 	default n
@@ -269,6 +299,15 @@ config MTD_AT24XX
 		at24c128, at24c256)
 
 if MTD_AT24XX
+
+config AT24XX_MULTI
+	bool "Multiple AT24XX devices"
+	default n
+	---help---
+		Build in additional support for multiple AT24XX devices, each with
+		dynamically allocated device structures wiath a separate I2C
+		addresses (but otherwise identical -- support for multiple, different
+		AT24xx, devices not yet supported).
 
 config AT24XX_SIZE
 	int "AT24xx size (Kbit)"
@@ -283,6 +322,7 @@ config AT24XX_ADDR
 	hex "AT24XX I2C address"
 	default 0x50
 	range 0x50 0x57
+	depends on !AT24XX_MULTI
 	---help---
 		The I2C address of the FLASH part.  This is should be 0b01010aaa
 		(where aaa is determined by board/pin configuration).
@@ -395,18 +435,18 @@ config M25P_SUBSECTOR_ERASE
 
 endif
 
-config MTD_ST25FL1
-	bool "QuadSPI-based ST25FL1 FLASH"
+config MTD_S25FL1
+	bool "QuadSPI-based S25FL1 FLASH"
 	default n
 
-if MTD_ST25FL1
+if MTD_S25FL1
 
-config ST25FL1_QSPIMODE
-	int "ST25FL1 QuadSPI Mode"
+config S25FL1_QSPIMODE
+	int "S25FL1 QuadSPI Mode"
 	default 0
 
-config ST25FL1_QSPI_FREQUENCY
-	int "ST25FL1 QuadSPI Frequency"
+config S25FL1_QSPI_FREQUENCY
+	int "S25FL1 QuadSPI Frequency"
 	default 108000000
 	---help---
 		Per data sheet:
@@ -430,20 +470,20 @@ config ST25FL1_QSPI_FREQUENCY
 
 		In this implementation, only "Quad" reads are performed.
 
-config ST25FL1_SECTOR512
+config S25FL1_SECTOR512
 	bool "Simulate 512 byte Erase Blocks"
 	default n
 
-config ST25FL1_SCRAMBLE
+config S25FL1_SCRAMBLE
 	bool "Scramble data"
 	default n
 	---help---
 		Requires drviver support for data scrambling/descrambling.
 
-config ST25FL1_SCRAMBLE_KEY
+config S25FL1_SCRAMBLE_KEY
 	hex "Scramble key"
 	default 0x0baddead
-	depends on ST25FL1_SCRAMBLE
+	depends on S25FL1_SCRAMBLE
 
 endif
 
@@ -460,6 +500,14 @@ config MTD_SMART
 		an erase block needs to be erased.
 
 if MTD_SMART
+
+config SMART_DEV_LOOP
+	bool "Enable SMART loop device"
+	select FILEMTD
+	default n
+	---help---
+		Supports a smart loop device that can be used to export a
+		file (or character device) as a SMART block device.
 
 config MTD_SMART_SECTOR_SIZE
 	int "SMART Device sector size"

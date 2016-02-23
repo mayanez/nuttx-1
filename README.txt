@@ -1,5 +1,4 @@
 README
-README
 ^^^^^^
 
   o Installation
@@ -1112,17 +1111,6 @@ Window Native Toolchain Issues
      is not a long as you might think because there is no dependency checking
      if you are using a native Windows toolchain.  That bring us to #3:
 
-  3. Dependencies are not made when using Windows versions of the GCC on a POSIX
-     platform (i.e., Cygwin).  This is because the dependencies are generated
-     using Windows paths which do not work with the Cygwin make.
-
-       MKDEP                = $(TOPDIR)/tools/mknulldeps.sh
-
-     If you are building natively on Windows, then no such conflict exists
-     and the best selection is:
-
-       MKDEP                = $(TOPDIR)/tools/mkdeps.exe
-
 General Pre-built Toolchain Issues
 
   To continue with the list of "Window Native Toolchain Issues" we can add
@@ -1256,6 +1244,8 @@ nuttx/
  |- configs/
  |   |- amber/
  |   |   `- README.txt
+ |   |- arduino-mega2560/
+ |   |   `- README.txt
  |   |- arduino-due/
  |   |   `- README.txt
  |   |- avr32dev1/
@@ -1309,6 +1299,8 @@ nuttx/
  |   |   `- README.txt
  |   |- kwikstik-k40/
  |   |   `- README.txt
+ |   |- launchxl-tms57004/
+ |   |   `- README.txt
  |   |- lincoln60/
  |   |   `- README.txt
  |   |- lm3s6432-s2e/
@@ -1318,6 +1310,8 @@ nuttx/
  |   |- lm3s8962-ek/
  |   |   `- README.txt
  |   |- lpc4330-xplorer/
+ |   |   `- README.txt
+ |   |- lpc4337-ws/
  |   |   `- README.txt
  |   |- lpc4357-evb/
  |   |   `- README.txt
@@ -1365,6 +1359,8 @@ nuttx/
  |   |- olimex-lpc-h3131/
  |   |   `- README.txt
  |   |- olimex-stm32-h405/
+ |   |   `- README.txt
+ |   |- olimex-stm32-h407/
  |   |   `- README.txt
  |   |- olimex-stm32-p107/
  |   |   `- README.txt
@@ -1416,9 +1412,12 @@ nuttx/
  |   |   `- README.txt
  |   |- sam4s-xplained-pro/
  |   |   `- README.txt
- |   |- samv7i-xult/
+ |   |- same70-xplained/
+ |   |   `- README.txt
+ |   |- samv71-xult/
  |   |   `- README.txt
  |   |- sim/
+ |   |   |- include/README.txt
  |   |   `- README.txt
  |   |- shenzhou/
  |   |   `- README.txt
@@ -1461,6 +1460,8 @@ nuttx/
  |   |- tm4c1294-launchpad/
  |   |   `- README.txt
  |   |- twr-k60n512/
+ |   |   `- README.txt
+ |   |- u-blox-co27/
  |   |   `- README.txt
  |   |- ubw32/
  |   |   `- README.txt
@@ -1547,6 +1548,8 @@ apps/
  |   |- json/README.txt
  |   |- pashello/README.txt
  |   `- README.txt
+ |- gpsutils/
+ |   `- minmea/README.txt
  |- graphics/
  |   `- tiff/README.txt
  |- interpreters/

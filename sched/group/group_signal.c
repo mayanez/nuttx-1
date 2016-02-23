@@ -1,7 +1,7 @@
 /****************************************************************************
  *  sched/group/group_signal.c
  *
- *   Copyright (C) 2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2013, 2016 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -52,10 +52,6 @@
 #if defined(HAVE_TASK_GROUP) && !defined(CONFIG_DISABLE_SIGNALS)
 
 /****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/****************************************************************************
  * Private Types
  ****************************************************************************/
 
@@ -69,10 +65,6 @@ struct group_signal_s
   FAR struct tcb_s *ptcb; /* This TCB received the signal */
 };
 #endif
-
-/****************************************************************************
- * Private Data
- ****************************************************************************/
 
 /****************************************************************************
  * Private Functions
@@ -101,12 +93,12 @@ static int group_signal_handler(pid_t pid, FAR void *arg)
   FAR sigactq_t *sigact;
   int ret;
 
-  DEBUGASSERT(info);
+  DEBUGASSERT(tcb != NULL && tcb->group != NULL && info != NULL);
 
   /* Get the TCB associated with the group member */
 
   tcb = sched_gettcb(pid);
-  DEBUGASSERT(tcb);
+  DEBUGASSERT(tcb ! = NULL);
   if (tcb)
     {
       /* Set this one as the default if we have not already set the default. */
@@ -159,9 +151,9 @@ static int group_signal_handler(pid_t pid, FAR void *arg)
               info->utcb = tcb;
             }
 
-          /* Is there also an action associated with the task? */
+          /* Is there also a action associated with the task group? */
 
-          sigact = sig_findaction(tcb, info->siginfo->si_signo);
+          sigact = sig_findaction(tcb->group, info->siginfo->si_signo);
           if (sigact)
             {
               /* Yes.. then use this thread.  The requirement is this:

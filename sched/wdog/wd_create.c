@@ -1,7 +1,7 @@
 /****************************************************************************
  * sched/wdog/wd_create.c
  *
- *   Copyright (C) 2007-2009, 2014 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007-2009, 2014, 2016 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,31 +42,12 @@
 #include <stdbool.h>
 #include <queue.h>
 
-#include <nuttx/arch.h>
+#include <nuttx/irq.h>
+#include <nuttx/wdog.h>
 #include <nuttx/wdog.h>
 #include <nuttx/kmalloc.h>
 
 #include "wdog/wdog.h"
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/****************************************************************************
- * Private Type Declarations
- ****************************************************************************/
-
-/****************************************************************************
- * Public Data
- ****************************************************************************/
-
-/****************************************************************************
- * Private Variables
- ****************************************************************************/
-
-/****************************************************************************
- * Private Functions
- ****************************************************************************/
 
 /****************************************************************************
  * Public Functions
@@ -93,14 +74,14 @@
 WDOG_ID wd_create (void)
 {
   FAR struct wdog_s *wdog;
-  irqstate_t state;
+  irqstate_t flags;
 
   /* These actions must be atomic with respect to other tasks and also with
    * respect to interrupt handlers that may be allocating or freeing watchdog
    * timers.
    */
 
-  state = irqsave();
+  flags = enter_critical_section();
 
   /* If we are in an interrupt handler -OR- if the number of pre-allocated
    * timer structures exceeds the reserve, then take the the next timer from
@@ -136,7 +117,7 @@ WDOG_ID wd_create (void)
           DEBUGASSERT(g_wdnfree == 0);
         }
 
-      irqrestore(state);
+      leave_critical_section(flags);
     }
 
   /* We are in a normal tasking context AND there are not enough unreserved,
@@ -148,7 +129,7 @@ WDOG_ID wd_create (void)
     {
       /* We do not require that interrupts be disabled to do this. */
 
-      irqrestore(state);
+      leave_critical_section(flags);
       wdog = (FAR struct wdog_s *)kmm_malloc(sizeof(struct wdog_s));
 
       /* Did we get one? */

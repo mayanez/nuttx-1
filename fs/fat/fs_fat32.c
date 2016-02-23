@@ -118,7 +118,7 @@ static int     fat_stat(struct inode *mountpt, const char *relpath,
                  FAR struct stat *buf);
 
 /****************************************************************************
- * Private Variables
+ * Private Data
  ****************************************************************************/
 
 /****************************************************************************
@@ -409,17 +409,16 @@ static int fat_close(FAR struct file *filep)
 
   /* Recover our private data from the struct file instance */
 
-  ff = filep->f_priv;
+  ff    = filep->f_priv;
+  inode = filep->f_inode;
+  fs    = inode->i_private;
+
+  DEBUGASSERT(fs != NULL);
 
   /* Check for the forced mount condition */
 
   if ((ff->ff_bflags & UMOUNT_FORCED) == 0)
     {
-      inode = filep->f_inode;
-      fs    = inode->i_private;
-
-      DEBUGASSERT(fs != NULL);
-
       /* Do not check if the mount is healthy.  We must support closing of
        * the file even when there is healthy mount.
        */
@@ -479,13 +478,16 @@ static ssize_t fat_read(FAR struct file *filep, FAR char *buffer,
   FAR struct fat_file_s *ff;
   unsigned int bytesread;
   unsigned int readsize;
-  unsigned int nsectors;
   size_t bytesleft;
   int32_t cluster;
   FAR uint8_t *userbuffer = (FAR uint8_t *)buffer;
   int sectorindex;
   int ret;
+
+#ifndef CONFIG_FAT_FORCE_INDIRECT
+  unsigned int nsectors;
   bool force_indirect = false;
+#endif
 
   /* Sanity checks */
 
@@ -586,10 +588,11 @@ static ssize_t fat_read(FAR struct file *filep, FAR char *buffer,
           ff->ff_sectorsincluster = fs->fs_fatsecperclus;
         }
 
-#ifdef CONFIG_FAT_DMAMEMORY /* Warning avoidance */
+#ifdef CONFIG_FAT_DIRECT_RETRY /* Warning avoidance */
 fat_read_restart:
 #endif
 
+#ifndef CONFIG_FAT_FORCE_INDIRECT
       /* Check if the user has provided a buffer large enough to hold one
        * or more complete sectors -AND- the read is aligned to a sector
        * boundary.
@@ -622,21 +625,22 @@ fat_read_restart:
           ret = fat_hwread(fs, userbuffer, ff->ff_currentsector, nsectors);
           if (ret < 0)
             {
-#ifdef CONFIG_FAT_DMAMEMORY
+#ifdef CONFIG_FAT_DIRECT_RETRY
               /* The low-level driver may return -EFAULT in the case where
-               * the transfer cannot be performed due to DMA constraints.
-               * It is probable that the buffer is completely un-DMA-able,
-               * so force indirect transfers via the sector buffer and
-               * restart the operation.
+               * the transfer cannot be performed due to buffer memory
+               * constraints.  It is probable that the buffer is completely
+               * un-DMA-able or improperly aligned.  In this case, force
+               * indirect transfers via the sector buffer and restart the
+               * operation (unless we have already tried that).
                */
 
-              if (ret == -EFAULT)
+              if (ret == -EFAULT && !force_indirect)
                 {
                   fdbg("DMA: read alignment error, restarting indirect\n");
                   force_indirect = true;
                   goto fat_read_restart;
                 }
-#endif
+#endif /* CONFIG_FAT_DIRECT_RETRY */
 
               goto errout_with_semaphore;
             }
@@ -646,6 +650,7 @@ fat_read_restart:
           bytesread                = nsectors * fs->fs_hwsectorsize;
         }
       else
+#endif /* CONFIG_FAT_FORCE_INDIRECT */
         {
           /* We are reading a partial sector, or handling a non-DMA-able
            * whole-sector transfer.  First, read the whole sector
@@ -709,11 +714,14 @@ static ssize_t fat_write(FAR struct file *filep, FAR const char *buffer,
   int32_t cluster;
   unsigned int byteswritten;
   unsigned int writesize;
-  unsigned int nsectors;
   FAR uint8_t *userbuffer = (FAR uint8_t *)buffer;
   int sectorindex;
   int ret;
+
+#ifndef CONFIG_FAT_FORCE_INDIRECT
+  unsigned int nsectors;
   bool force_indirect = false;
+#endif
 
   /* Sanity checks.  I have seen the following assertion misfire if
    * CONFIG_DEBUG_MM is enabled while re-directing output to a
@@ -840,10 +848,11 @@ static ssize_t fat_write(FAR struct file *filep, FAR const char *buffer,
           ff->ff_currentsector    = fat_cluster2sector(fs, cluster);
         }
 
-#ifdef CONFIG_FAT_DMAMEMORY /* Warning avoidance */
+#ifdef CONFIG_FAT_DIRECT_RETRY /* Warning avoidance */
 fat_write_restart:
 #endif
 
+#ifndef CONFIG_FAT_FORCE_INDIRECT
       /* Check if the user has provided a buffer large enough to
        * hold one or more complete sectors.
        */
@@ -876,21 +885,22 @@ fat_write_restart:
           ret = fat_hwwrite(fs, userbuffer, ff->ff_currentsector, nsectors);
           if (ret < 0)
             {
-#ifdef CONFIG_FAT_DMAMEMORY
+#ifdef CONFIG_FAT_DIRECT_RETRY
               /* The low-level driver may return -EFAULT in the case where
-               * the transfer cannot be performed due to DMA constraints.
-               * It is probable that the buffer is completely un-DMA-able,
-               * so force indirect transfers via the sector buffer and
-               * restart the operation.
+               * the transfer cannot be performed due to buffer memory
+               * constraints.  It is probable that the buffer is completely
+               * un-DMA-able or improperly aligned.  In this case, force
+               * indirect transfers via the sector buffer and restart the
+               * operation (unless we have already tried that).
                */
 
-              if (ret == -EFAULT)
+              if (ret == -EFAULT && !force_indirect)
                 {
                   fdbg("DMA: write alignment error, restarting indirect\n");
                   force_indirect = true;
                   goto fat_write_restart;
                 }
-#endif
+#endif /* CONFIG_FAT_DIRECT_RETRY */
 
               goto errout_with_semaphore;
             }
@@ -901,6 +911,7 @@ fat_write_restart:
           ff->ff_bflags           |= FFBUFF_MODIFIED;
         }
       else
+#endif /* CONFIG_FAT_FORCE_INDIRECT */
         {
           /* Decide whether we are performing a read-modify-write
            * operation, in which case we have to read the existing sector

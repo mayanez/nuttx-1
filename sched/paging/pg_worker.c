@@ -68,10 +68,6 @@
 #endif
 
 /****************************************************************************
- * Private Type Declarations
- ****************************************************************************/
-
-/****************************************************************************
  * Public Data
  ****************************************************************************/
 
@@ -94,7 +90,7 @@ pid_t g_pgworker;
 FAR struct tcb_s *g_pftcb;
 
 /****************************************************************************
- * Private Variables
+ * Private Data
  ****************************************************************************/
 
 #ifndef CONFIG_PAGING_BLOCKINGFILL
@@ -110,7 +106,7 @@ static int g_fillresult;
  */
 
 #ifdef CONFIG_PAGING_TIMEOUT_TICKS
-status uint32_t g_starttime;
+static systime_t g_starttime;
 #endif
 #endif
 
@@ -279,7 +275,7 @@ static inline bool pg_dequeue(void)
                * if a new higher priority fill is required).
                */
 
-              FAR struct tcb_s *wtcb = (FAR struct tcb_s *)g_readytorun.head;
+              FAR struct tcb_s *wtcb = this_task();
               if (wtcb->sched_priority > CONFIG_PAGING_DEFPRIO &&
                   wtcb->sched_priority > g_pftcb->sched_priority)
                 {
@@ -456,7 +452,7 @@ static inline bool pg_startfill(void)
 
 static inline void pg_alldone(void)
 {
-  FAR struct tcb_s *wtcb = (FAR struct tcb_s *)g_readytorun.head;
+  FAR struct tcb_s *wtcb = this_task();
   g_pftcb = NULL;
   pgllvdbg("New worker priority. %d->%d\n",
            wtcb->sched_priority, CONFIG_PAGING_DEFPRIO);
@@ -537,7 +533,7 @@ int pg_worker(int argc, char *argv[])
    */
 
   pglldbg("Started\n");
-  (void)irqsave();
+  (void)up_irq_save();
   for (; ; )
     {
       /* Wait awhile.  We will wait here until either the configurable timeout
