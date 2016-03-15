@@ -1636,6 +1636,47 @@ int up_timer_start(FAR const struct timespec *ts);
 #endif
 
 /****************************************************************************
+ * TLS support
+ ****************************************************************************/
+
+/****************************************************************************
+ * Name: up_tls_info
+ *
+ * Description:
+ *   Return the TLS information structure for the currently executing thread.
+ *   When TLS is enabled, up_createstack() will align allocated stacks to
+ *   the TLS_STACK_ALIGN value.  An instance of the following structure will
+ *   be implicitly positioned at the "lower" end of the stack.  Assuming a
+ *   "push down" stack, this is at the "far" end of the stack (and can be
+ *   clobbered if the stack overflows).
+ *
+ *   If an MCU has a "push up" then that TLS structure will lie at the top
+ *   of the stack and stack allocation and initialization logic must take
+ *   care to preserve this structure content.
+ *
+ *   The stack memory is fully accessible to user mode threads.
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   A pointer to TLS info structure at the beginning of the STACK memory
+ *   allocation.  This is essentially an application of the TLS_INFO(sp)
+ *   macro and has a platform dependency only in the manner in which the
+ *   stack pointer (sp) is obtained and interpreted.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_TLS
+/* struct tls_info_s;
+ * FAR struct tls_info_s *up_tls_info(void);
+ *
+ * The actual declaration or definition is provided in arch/tls.h.  The
+ * actual implementation may be a MACRO or and inline function.
+ */
+#endif
+
+/****************************************************************************
  * Multiple CPU support
  ****************************************************************************/
 
@@ -1651,7 +1692,7 @@ int up_timer_start(FAR const struct timespec *ts);
  * Returned Value:
  *   The spinlock is always locked upon return.  The value of previous value
  *   of the spinlock variable is returned, either SP_LOCKED if the spinlock
- *   as previously locked (meaning that the test-and-set operation failed to
+ *   was previously locked (meaning that the test-and-set operation failed to
  *   obtain the lock) or SP_UNLOCKED if the spinlock was previously unlocked
  *   (meaning that we successfully obtained the lock)
  *
@@ -1692,7 +1733,7 @@ int up_cpu_index(void);
  *
  *   Each CPU is provided the entry point to is IDLE task when started.  A
  *   TCB for each CPU's IDLE task has been initialized and placed in the
- *   CPU's g_assignedtasks[cpu] list.  Not stack has been alloced or
+ *   CPU's g_assignedtasks[cpu] list.  A stack has also been allocateded and
  *   initialized.
  *
  *   The OS initialization logic calls this function repeatedly until each
@@ -1702,7 +1743,6 @@ int up_cpu_index(void);
  *   cpu - The index of the CPU being started.  This will be a numeric
  *         value in the range of from one to (CONFIG_SMP_NCPUS-1).  (CPU
  *         0 is already active)
- *   idletask - The entry point to the IDLE task.
  *
  * Returned Value:
  *   Zero on success; a negated errno value on failure.
@@ -1710,7 +1750,29 @@ int up_cpu_index(void);
  ****************************************************************************/
 
 #ifdef CONFIG_SMP
-int up_cpu_start(int cpu, main_t idletask);
+int up_cpu_start(int cpu);
+#endif
+
+/****************************************************************************
+ * Name: up_cpu_initialize
+ *
+ * Description:
+ *   After the CPU has been started (via up_cpu_start()) the system will
+ *   call back into the architecture-specific code with this function on the
+ *   thread of execution of the newly started CPU.  This gives the
+ *   architecture-specific a chance to perform ny initial, CPU-specific
+ *   initialize on that thread.
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   Zero on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_SMP
+int up_cpu_initialize(void);
 #endif
 
 /****************************************************************************
@@ -1726,7 +1788,7 @@ int up_cpu_start(int cpu, main_t idletask);
  *   CPU.
  *
  * Input Parameters:
- *   cpu - The index of the CPU to be stopped/
+ *   cpu - The index of the CPU to be paused.
  *
  * Returned Value:
  *   Zero on success; a negated errno value on failure.
@@ -1749,7 +1811,7 @@ int up_cpu_pause(int cpu);
  *   the CPU after modifying its g_assignedtasks[cpu] list.
  *
  * Input Parameters:
- *   cpu - The index of the CPU being re-started.
+ *   cpu - The index of the CPU being resumed.
  *
  * Returned Value:
  *   Zero on success; a negated errno value on failure.

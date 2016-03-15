@@ -192,7 +192,8 @@ function configure {
     fi
 
     echo "  Refreshing..."
-    kconfig-conf --olddefconfig Kconfig 1>/dev/null
+    cd $nuttx || { echo "ERROR: failed to CD to $nuttx"; exit 1; }
+    make olddefconfig 1>/dev/null 2>&1
 }
 
 # Perform the next build

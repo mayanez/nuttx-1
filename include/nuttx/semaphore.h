@@ -113,6 +113,26 @@ extern "C"
 
 int sem_tickwait(FAR sem_t *sem, systime_t start, uint32_t delay);
 
+/****************************************************************************
+ * Name: sem_reset
+ *
+ * Description:
+ *   Reset a semaphore count to a specific value.  This is similar to part
+ *   of the operation of sem_init().  But sem_reset() may need to wake up
+ *   tasks waiting on a count.  This kind of operation is sometimes required
+ *   within the OS (only) for certain error handling conditions.
+ *
+ * Parameters:
+ *   sem   - Semaphore descriptor to be reset
+ *   count - The requested semaphore count
+ *
+ * Return Value:
+ *   0 (OK) or a negated errno value if unsuccessful
+ *
+ ****************************************************************************/
+
+int sem_reset(FAR sem_t *sem, int16_t count);
+
 #undef EXTERN
 #ifdef __cplusplus
 }

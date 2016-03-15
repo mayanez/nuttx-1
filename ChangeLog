@@ -1654,7 +1654,7 @@
 	* arch/*/include/*/type.h: On some compilers, char defaults as unsigned.
 	  Explicitly add signed to integer types if signed is what is required.
 	* arch/*: For all architectures -- Global register state save structure
-	  (usually called current_regs) should be marked volatile; Added general
+	  (usually called g_current_regs) should be marked volatile; Added general
 	  capability to support nested interrupts (not fully realized for all
 	  architectures).
 	* sched/task_create.c: Add support for starting kernel-mode thread.
@@ -11523,4 +11523,43 @@
 	  data buffers (2016-02-22).
 	* fs/fat:  Add an option to force all transfers to be performed indirectly
 	  using the FAT file system's internal sector buffers (2016-02-22).
+	* drivers/wireless/ieee802154: New directory.  Nothing there yet (2016-02-25).
+	* wireless/: New top level directory.  Nothing there yet (2015-02-26).
+	* wireless/ieee802154: Add an new directory to the build.  Nothing there
+	  yet (2016-02-26).
+	* include/nuttx/wireless/ieee802154: Add directory (and dummy header file)
+	  (2016-02-16).
+	* arch/arm/include and src: Rename the imx directories to imx1 to make room
+	  in the namespace for other members of the i.MX family (2016-02-27).
+	* arch/arm/include/imx6 and src/imx6:  Evolving support for the NXP/Freescale
+	  i.MX6Q (2016-02-28).
+	* configs/sabre-6quad:  Placeholder that will eventually become board support
+	  for the NXP/Freescale Sabre 6Quad board (2016-02-28).
+	* arch/arm/src/stm32:  Support for STM32F46xx from Paul Alexander Patience
+	* sched/semaphore/sem_reset.c and include/nuttx/semaphore.h: Add an internal,
+	  non-standard interface to reset a semaphore count.  This is sometimes
+	  needed by drivers in order to recover from error conditions (2016-03-05)
+	* AT24xx driver: Correct missing address calculation logic.  From Frank
+	  Benkert (2016-03-08).
+	* arch/ renaming:  current_regs renamed to g_current_regs in all
+	  architectures.  For ARM which is slowly developing SMP capability,
+	  g_current_regs is now an array of dimension 1 in most case but of higher
+	  dimension of the architecuture supports multiple CPUs (2016-03-09).
+	* MTD: Increase block size in mtd_geometry_s to 32-bits (2016-03-09).
+	* include/nuttx/clock.h:  Missing parenteses in MSEC2TICK macro can
+	  cause wrong calculations.  From Stefan Kolb (2016-03-09).
+	* Build system:  Added a 'make olddefconfig' target that will refresh
+	  a .config file without interaction.  tools/refesh.sh no has a --silent
+	  option so that it can be used in batch modes without human input
+	  (2016-03-09).
+	* tools/testbuild.sh:  .config files were not being updated because (a)
+	  kconfig-conf was being called in the wrong directory and (b) apps/Kconfig
+	  had not yet been created.  Now uses 'make olddefconfig' (2016-03-09).
+	* arch/arm/src/stm32l4 and include/stm32l4:  Add support for the STM32L4
+	  family.  From Sebastien Lorquet (2016-03-10).
+	* configs/nucleo-l476:  Add support for the Nucleo-L476 board.  From
+	  Sebastien Lorquet (2016-03-10).
+	* sched/tls and include/nuttx/tls.h:  Basic definitions needed to support
+	  thread local storage (TLS).  Not used anywhere yet (and may not be used
+	  in the near future either) (2016-03-10).
 
