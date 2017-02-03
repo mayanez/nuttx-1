@@ -100,6 +100,11 @@ ifeq ($(filter y, \
       $(CONFIG_ARMV7M_TOOLCHAIN_GNU_EABIW) \
     ),y)
   CONFIG_ARMV7M_TOOLCHAIN ?= GNU_EABIW
+
+ifeq ($(filter y, \
+			$(CONFIG_ARMV7M_TOOLCHAIN_GNU_EABIL_CLANG) \
+		),y)
+	CONFIG_ARMV7M_TOOLCHAIN ?= GNU_EABIL_CLANG
 endif
 
 #
@@ -268,4 +273,12 @@ ifeq ($(CONFIG_ARMV7M_TOOLCHAIN),RAISONANCE)
     WINTOOL = y
   endif
   ARCHCPUFLAGS = $(TOOLCHAIN_MCPU) -mthumb $(TOOLCHAIN_MFLOAT)
+
+# Generic GNU EABI toolchain under Linux with Clang
+ifeq ($(CONFIG_ARMV7M_TOOLCHAIN),GNU_EABIL_CLANG)
+	TOOLCHAIN_TARGET := -target arm-none-eabi
+	CROSSDEV ?= arm-none-eabi-
+	ARCROSSDEV ?= arm-none-eabi-
+	MAXOPTIMIZATION ?= -Os
+	ARCHCPUFLAGS = $(TOOLCHAIN_TARGET) $(TOOLCHAIN_MCPU) -mthumb $(TOOLCHAIN_MFLOAT)
 endif
