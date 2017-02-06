@@ -164,9 +164,10 @@ LDLIBS = $(patsubst %.a,%,$(patsubst lib%,-l%,$(LINKLIBS)))
 ifeq ($(BOARDMAKE),y)
   LDLIBS += -lboard
 ifeq ($(CONFIG_ARM_TOOLCHAIN_GNU_CLANG),y)
-	LIBGCC = "${shell "$(CROSSDEV)gcc" $(ARCHCPUFLAGS) -print-libgcc-file-name}"
+	LIBGCC = "${shell "$(CROSSDEV)gcc" $(ARCHCPUFLAGS_GCC) -print-libgcc-file-name}"
 else
 	LIBGCC = "${shell "$(CC)" $(ARCHCPUFLAGS) -print-libgcc-file-name}"
+endif
 endif
 
 GCC_LIBDIR := ${shell dirname $(LIBGCC)}
